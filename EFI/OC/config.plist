@@ -289,6 +289,24 @@
 				<key>Arch</key>
 				<string>x86_64</string>
 				<key>BundlePath</key>
+				<string>IntelHybridCores.kext</string>
+				<key>Comment</key>
+				<string>P-cores/E-cores: QoS scheduling, hw.perflevel, Activity Monitor labels (github.com/rodgod-rr/IntelHybridCores)</string>
+				<key>Enabled</key>
+				<true/>
+				<key>ExecutablePath</key>
+				<string>Contents/MacOS/IntelHybridCores</string>
+				<key>MaxKernel</key>
+				<string></string>
+				<key>MinKernel</key>
+				<string>22.0.0</string>
+				<key>PlistPath</key>
+				<string>Contents/Info.plist</string>
+			</dict>
+			<dict>
+				<key>Arch</key>
+				<string>x86_64</string>
+				<key>BundlePath</key>
 				<string>WhateverXe.kext</string>
 				<key>Comment</key>
 				<string>WhateverXe 0.7.0 (b00t0x)</string>
@@ -1157,7 +1175,7 @@
 				AAAAAAAAAAAAAAAAAAA=
 				</data>
 				<key>boot-args</key>
-				<string>keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -allow3d -disablegfxfirmware amfi_get_out_of_my_way=1 gfxrst=1 -g15pm -igfxdvmt -wexdbg wexblmin=4900 -wex-blmin=4900 nvfb=1 nvaccel=1 acpi=0xC -g15fan-rtxpm-corte wexg15psr=3 wexg15unstick=31</string>
+				<string>keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -allow3d -disablegfxfirmware amfi_get_out_of_my_way=1 gfxrst=1 -g15pm -igfxdvmt -wexdbg wexblmin=4900 -wex-blmin=4900 nvfb=1 nvaccel=1 acpi=0xC -g15fan-rtxpm-corte wexg15psr=3 wexg15unstick=31 hcmode=4</string>
 				<key>csr-active-config</key>
 				<data>
 				QwoAAA==

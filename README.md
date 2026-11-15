@@ -107,6 +107,14 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     profile (`G15PM`).
   - Fans and thermal profiles (Battery, Quiet, Balanced, Performance, G-Mode) through Dell WMAX (`G15Fan`).
   - CPU/RTX temperatures in the menu bar (G15.app).
+- **P-cores and E-cores** (6P + 4E) through [IntelHybridCores](https://github.com/rodgod-rr/IntelHybridCores):
+  - Background work (Spotlight, Time Machine, photo analysis) runs on the E-cores and the foreground on the P-cores,
+    by the QoS each app declares. This EFI uses `hcmode=4` (background only on E-cores, as on Apple Silicon): under
+    heavy background load the CPU package draws about half (27 W instead of 52 W on AC), at the cost of slower
+    background tasks. `hcmode=2` makes it a preference instead; `sysctl debug.hc_mode=N` changes it live.
+  - `hw.nperflevels` = 2 ("Performance" 6/12, "Efficiency" 4/4) and Activity Monitor's CPU History shows
+    "Core 1-12 — Performance" and "Core 13-16 — Efficiency". System Information still shows 16 cores.
+  - CpuTopologyRebuild is included but must stay disabled: it reports the E-cores as SMT siblings, which defeats this.
 - **Dual boot with Fedora** on a separate NVMe, chosen from the Dell F12 menu.
 
 ## What partly works
@@ -140,7 +148,6 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   hides it.
 - **Camera/microphone permissions:** with AMFI relaxed, macOS never shows the permission prompt for third-party apps.
   G15.app shows its own prompt and writes the TCC entry.
-- **P-cores and E-cores** are not distinguished by macOS (CpuTopologyRebuild is included but disabled).
 
 ## What does not work
 
@@ -202,13 +209,13 @@ still works).
 ```
 keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -allow3d -disablegfxfirmware
 amfi_get_out_of_my_way=1 gfxrst=1 -g15pm -igfxdvmt -wexdbg wexblmin=4900 -wex-blmin=4900 nvfb=1 nvaccel=1 acpi=0xC
--g15fan-rtxpm-corte wexg15psr=3 wexg15unstick=31
+-g15fan-rtxpm-corte wexg15psr=3 wexg15unstick=31 hcmode=4
 ```
 
 - Required: `-allow3d -disablegfxfirmware amfi_get_out_of_my_way=1 -igfxdvmt gfxrst=1 -g15pm wexblmin=4900
   -wex-blmin=4900 nvfb=1 nvaccel=1`.
 - Optional: `-g15fan-rtxpm-corte` (cut RTX power when idle), `wexg15psr=3` (PSR1), `wexg15unstick=31` (tries to restart
-  a stuck engine before the GPU reset).
+  a stuck engine before the GPU reset), `hcmode=4` (IntelHybridCores mode; without it the default is 2).
 - Logging only, safe to remove (add `-v` for a verbose boot): `keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -wexdbg acpi=0xC`.
 
 SIP is partly disabled (`csr-active-config` 0x0A43) and AMFI is relaxed, because the GPU bundles are re-signed ad hoc.
@@ -237,6 +244,8 @@ Know what that means for your security.
     - `G15PM`: the XE-PM part of NootedGreen as its own Lilu plug-in (HWP, turbo, C-states, EPP), plus the RTX hooks
       (`RtxLazy`, `RtxCalls`, `RtxDeny`) and Bluetooth USB idle suspend (`BtIdle`).
     - `AudShim`: speakers, DMIC, headphone jack and headset microphone.
+    - `IntelHybridCores`: P-core/E-core scheduling, `hw.perflevel` and Activity Monitor labels. Its own repository:
+      [rodgod-rr/IntelHybridCores](https://github.com/rodgod-rr/IntelHybridCores) (source, write-up, measurements).
     - `G15AGPMIgpu`: AGPM profile for the UHD without `RCxControl`/`CPGControl` (RC6, see "What works").
   - Sources are in `src/`.
 
