@@ -1,4 +1,4 @@
-# Dell G15 5530 Hackintosh: macOS Tahoe 26.7.2, OpenCore EFI
+# Dell G15 5530 Hackintosh: macOS Tahoe 26.7.3, OpenCore EFI
 
 This is the working EFI for my Dell G15 5530, with notes on what works, what partly works and what does not.
 **It is a snapshot of my daily-use setup, not a polished guide.** Read the whole page before trying it. Your BIOS,
@@ -15,7 +15,7 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
 | Touchpad | Synaptics I2C HID 06CB:CE81 |
 | SSD | Samsung 970 EVO (macOS); Fedora on a second NVMe |
 | BIOS | 1.0 (2026-01-21), shown in macOS as firmware 2094.80.5.0.0 |
-| macOS | Tahoe 26.7.2 (25G332) |
+| macOS | Tahoe 26.7.3 (25G342) |
 | OpenCore | 1.0.8, SMBIOS MacBookPro16,1 |
 
 ## What works
@@ -53,8 +53,16 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     muted), so the RTX can turn off; switching back to it resumes it at once and the RTX comes back in about 3 s.
     Tested with Hollow Knight, including unplugging the charger while it was frozen.
   - Idle on battery: about 24-29 W, against about 34 W with the RTX on.
-  - Apps reach the RTX only if listed in `/Library/GPUBundles/nvmtl-allow.txt`. Use
-    `tools/rtx/macos-rtx-allow.sh restrita [app ...]`; NullMoth's default `*` keeps it busy.
+  - **RTX as an external GPU (since 2026-11-16, boot-arg `-g15egpu`).** `G15PM` marks the RTX as removable for Metal
+    (`IOAccelDevice2::get_config` bit 13 and `Removable` on NVAccel; the kernel's own eGPU path is not used, so sleep is
+    unaffected). Apps with "Prefer External GPU" in Finder > Get Info run on the RTX by themselves (Hollow Knight, the
+    Novabench GPU test); everything else stays on the UHD. With this, NullMoth's default list `*` is fine.
+  - **Optional: lazy start of the Metal plugin.** Every Metal app used to wake the RTX just by listing the GPUs (the
+    plugin created the whole NVK device in `initWithAcceleratorPort:`). The `g15-lazy` branch of my NullMoth fork
+    ([rodgod-rr/nvidia-macos-driver](https://github.com/rodgod-rr/nvidia-macos-driver/tree/g15-lazy),
+    `docs/G15-LAZY-INIT.md`) answers the device properties from a saved snapshot and starts NVK on first real use:
+    Safari, TextEdit or WhatsApp no longer wake it; Preview's Live Text and games do. Not in this EFI (it replaces
+    NullMoth's `NVMTLDriver`).
   - While it is off, the RTX cannot see an HDMI cable. Pick "Ligada" before connecting one.
 - **Sleep (Deep Idle / S0, since the firmware has no S3).** Sleep and wake work, and the panel comes back every time.
   - Tested with 5 RTC cycles in a row, idle sleep, lid-close sleep, and 1 h 44 min on battery.
@@ -128,11 +136,13 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   cannot cut power on this machine ([nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)).
   - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 when idle, saving about 12 W.
   - With the RTX visible, the CPU package almost never reaches deep C-states.
-- **UHD hang (rare, under observation).** The UHD sometimes stops mid context switch (`gpuRestart`), the screen goes
-  black and WindowServer is killed by its watchdog. It was frequent until 2026-11-13; the main suspect was the old
-  two-byte Metal leak patch, which freed the POSH buffer while the queue could still use it (GPU restart storms for others
-  in [WhateverXe#47](https://github.com/b00t0x/WhateverXe/issues/47)). Graphics 0.4.4 fixes the leak safely and the old
-  patch is gone from this repository. Since then I had one hang (2026-11-14, about 14 min after a boot). The WhateverXe fork also keeps forcewake on every engine while it executes and
+- **UHD hang: fixed on 2026-11-16 (`-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
+  watchdog) when Apple's ML frameworks ran compute on the GPU: opening PDFs in Preview (Live Text), `mediaanalysisd`,
+  `photoanalysisd`. The compute engine (CCS) and the render engine (RCS) ran in parallel, which Intel's TGL PRM Vol 14
+  forbids ("SVSM: Dual Context - Invalidate hang"); Linux never uses the CCS on this GPU. Apple turns it on from
+  `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
+  driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
+  also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The WhateverXe fork also keeps forcewake on every engine while it executes and
   releases it as soon as the engine is idle (a still screen stays at about 1.2-1.7 W of package power). Each hang is
   written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
 - **eDP Panel Self Refresh (on in this config).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
@@ -209,13 +219,17 @@ still works).
 ```
 keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -allow3d -disablegfxfirmware
 amfi_get_out_of_my_way=1 gfxrst=1 -g15pm -igfxdvmt -wexdbg wexblmin=4900 -wex-blmin=4900 nvfb=1 nvaccel=1 acpi=0xC
--g15fan-rtxpm-corte wexg15psr=3 wexg15unstick=31 hcmode=4
+-g15fan-rtxpm-corte -nvmefaspm wexg15psr=3 wexg15unstick=31 hcmode=4 -wex-g15-gsync -wex-g15-ccsreset-off
+-wex-g15-noccs -g15egpu nvfbheads=4
 ```
 
 - Required: `-allow3d -disablegfxfirmware amfi_get_out_of_my_way=1 -igfxdvmt gfxrst=1 -g15pm wexblmin=4900
   -wex-blmin=4900 nvfb=1 nvaccel=1`.
+- Strongly recommended: `-wex-g15-noccs` (the UHD hang fix above).
 - Optional: `-g15fan-rtxpm-corte` (cut RTX power when idle), `wexg15psr=3` (PSR1), `wexg15unstick=31` (tries to restart
-  a stuck engine before the GPU reset), `hcmode=4` (IntelHybridCores mode; without it the default is 2).
+  a stuck engine before the GPU reset), `hcmode=4` (IntelHybridCores mode; without it the default is 2), `-g15egpu`
+  (RTX as an external GPU), `nvfbheads=4` (NullMoth's recommended display heads), `-nvmefaspm` (NVMeFix: ASPM L1 on
+  both NVMe drives), `-wex-g15-gsync -wex-g15-ccsreset-off` (GPU reset details in the WhateverXe fork).
 - Logging only, safe to remove (add `-v` for a verbose boot): `keepsyms=1 debug=0x100 msgbuf=4194304 -g15diag IGLogLevel=3 -wexdbg acpi=0xC`.
 
 SIP is partly disabled (`csr-active-config` 0x0A43) and AMFI is relaxed, because the GPU bundles are re-signed ad hoc.
@@ -231,6 +245,8 @@ Know what that means for your security.
   - `SSDT-LIDWAKE`: lid `PRW0` = EC GPE 0x6E, so the lid wakes from Deep Idle.
   - `SSDT-RTXKEXT`: `GOFF` / `GONN` methods used by G15Fan to cut RTX power during sleep.
   - `SSDT-PS2K-RMCF`: VoodooPS2 settings.
+  - `SSDT-BTRK`: `\_SB.AMWW.BTOF/BTON/BTST` around the DSDT's Bluetooth reset GPIO (`\_SB.BTRK`). G15Fan `BtReset`
+    holds the Intel BT in reset while it is off: it leaves USB and the package idles about 0.5 W lower.
 - `EFI/OC/Kexts`:
   - Lilu 1.7.3, VirtualSMC 1.3.9 (+ SMCBatteryManager, SMCProcessor), RestrictEvents 1.1.7, NVMeFix 1.1.4.
   - AirportItlwm 2.4.0, IntelBluetoothFirmware / IntelBTPatcher 2.5.3, BlueToolFixup 2.7.3, RealtekRTL8111 3.0.0.
@@ -284,9 +300,9 @@ every binary patch checks its bytes first, so it stops on a different driver ver
 6. **pmset:** battery display 3 min / sleep 5 min, AC display 5 min / sleep 15 min, `hibernatemode 0`, `standby 0`.
 
 Then do two things by hand:
-- Install **NullMoth 3.0** with its own installer. Then restrict the RTX to the apps that need it:
-  `sudo bash tools/rtx/macos-rtx-allow.sh restrita [app ...]`. Run this again after every NullMoth update, because the
-  update resets the list.
+- Install **NullMoth 3.0** with its own installer. With `-g15egpu` keep its default app list (`*`) and mark the apps
+  that should use the RTX with "Prefer External GPU". Without `-g15egpu`, restrict the RTX to the apps that need it:
+  `sudo bash tools/rtx/macos-rtx-allow.sh restrita [app ...]` (again after every NullMoth update).
 - Add `BOOST=0` to `/Library/GPUBundles/nvmtl/nvrm610.conf` so the RTX idles at P8.
 
 **Reinstalling the WhateverXe Graphics package undoes steps 1-3.** Run `install-macos.sh install` again afterwards.
