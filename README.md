@@ -1,4 +1,20 @@
-# Dell G15 5530 Hackintosh: macOS Tahoe 26.7.3, OpenCore EFI
+# Dell G15 5530 Hackintosh — Start deste fork
+
+Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
+10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
+
+**Estado: preparação anterior à atualização da BIOS.** A versão confirmada é
+1.35.0; 1.37.0 ainda não foi confirmada. As alterações funcionais anteriores na
+EFI foram desfeitas: os dois perfis e o SSDT EC/USBX estão exatamente como no
+commit-base upstream deste checkout. Eles ainda contêm a DSDT e os ajustes do
+i5/RTX 4050 do autor; não representam uma EFI já adaptada/validada para este i7.
+
+Leia [o estado Start e os seis pontos corrigidos](docs/HARDWARE-LOCAL.md) e
+[a comparação dos dumps ACPI](acpi-native/README.md). O próximo marco é confirmar
+a BIOS após a atualização e obter uma nova coleta antes de adaptar a EFI.
+
+## Referência upstream — equipamento e resultados do autor
+
 
 This is the working EFI for my Dell G15 5530, with notes on what works, what partly works and what does not.
 **It is a snapshot of my daily-use setup, not a polished guide.** Read the whole page before trying it. Your BIOS,

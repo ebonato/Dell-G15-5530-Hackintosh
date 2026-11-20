@@ -1,0 +1,150 @@
+# Coletas ACPI nativas — BIOS 1.35.0
+
+Estas tabelas são evidência para comparação, não arquivos para copiar para a EFI.
+As duas coletas ficam disponíveis ao Git; não há regra ignorando `acpi-native`.
+
+- `SSDTTime-1.35.0/`: dump fornecido pelo usuário, 32 arquivos, preservados sem alterações.
+- `bios-1.35.0/`: leitura anterior do registro do Windows, 17 arquivos distintos.
+  Removidas apenas duas cópias duplicadas geradas pela coleta anterior.
+- `manifest-1.35.0.json`: SHA-256, identificação, tamanho e checksum de todos os 49 arquivos.
+
+## Resultado da comparação
+
+**As 17 tabelas comuns são idênticas byte a byte.** A diferença entre as pastas é
+de nomenclatura e abrangência, não uma divergência no conteúdo das tabelas comuns.
+O SSDTTime enumera os SSDTs como `SSDT`, `SSDT1` etc.; a coleta do registro usou o
+OEM Table ID nos nomes. Não é correto comparar apenas os nomes ou o número de arquivos.
+
+| Coleta do registro | Arquivo SSDTTime | Resultado SHA-256 |
+| --- | --- | --- |
+| `registry-DSDT-DellInc.aml` | `DSDT.aml` | idêntico |
+| `registry-FACP-DellInc.aml` | `FACP.aml` | idêntico |
+| `registry-SSDT-ADebTabl.aml` | `SSDT14.aml` | idêntico |
+| `registry-SSDT-AWCCTABL.aml` | `SSDT1.aml` | idêntico |
+| `registry-SSDT-CpuSsdt.aml` | `SSDT2.aml` | idêntico |
+| `registry-SSDT-DellRtd3.aml` | `SSDT4.aml` | idêntico |
+| `registry-SSDT-DptfTabl.aml` | `SSDT3.aml` | idêntico |
+| `registry-SSDT-IgfxSsdt.aml` | `SSDT5.aml` | idêntico |
+| `registry-SSDT-NvdTable.aml` | `SSDT10.aml` | idêntico |
+| `registry-SSDT-Pmax_Dev.aml` | `SSDT.aml` | idêntico |
+| `registry-SSDT-PtidDevc.aml` | `SSDT7.aml` | idêntico |
+| `registry-SSDT-SocCmn.aml` | `SSDT13.aml` | idêntico |
+| `registry-SSDT-SocGpe.aml` | `SSDT12.aml` | idêntico |
+| `registry-SSDT-TbtTypeC.aml` | `SSDT8.aml` | idêntico |
+| `registry-SSDT-Tpm2Tabl.aml` | `SSDT9.aml` | idêntico |
+| `registry-SSDT-UsbCTabl.aml` | `SSDT6.aml` | idêntico |
+| `registry-SSDT-xh_Dell_.aml` | `SSDT11.aml` | idêntico |
+
+O SSDTTime contém mais 15 tabelas: APIC, BGRT, BOOT, DBG2, DBGP, DMAR, FPDT,
+HPET, LPIT, MCFG, NHLT, PHAT, TPM2, WSMT e XSDT. Elas não estavam na pasta da
+coleta pelo registro; ausência nessa pasta não significa ausência no firmware.
+Todos os 49 arquivos passaram na conferência de tamanho declarado e checksum ACPI.
+
+O [manifesto](manifest-1.35.0.json) registra o mesmo mapeamento em cada entrada.
+`equivalent` aponta para a `collection` e o `file` correspondentes na outra
+coleta, identificados por SHA-256. O vínculo é recíproco. O valor `null`
+indica que a outra coleta não contém um arquivo com o mesmo hash.
+
+DSDT nativa de ambas as coletas: 653.360 bytes, SHA-256
+`71A1652BE0EDE98C96887FA1ED79A2B0E8C0450D2F5221133F2F1ADC5A12DC22`.
+
+## Comparação inicial com o material do autor
+
+A DSDT distribuída em `EFI/OC/ACPI/DSDT.aml` é diferente da nativa:
+520.568 bytes, SHA-256
+`7019D13829DEB2E47CDD191340AFE1A6B262DE669ADE1EE43809B7DA239E445A`.
+
+Na descompilação isolada com iASL 20250807, a tabela do autor contém 19 chamadas
+a `XOSI` e nenhuma a `_OSI`; a nativa tem 19 chamadas a `_OSI` e nenhuma a `XOSI`.
+A nativa contém `Name (_S3, ...)`; essa definição não está na tabela do autor.
+Isso comprova modificações relevantes além da diferença de tamanho e hardware.
+
+Em ambas, o trecho examinado de `\_SB.PC00.LPCB.ECDV._STA` retorna `0x0F`.
+O comentário no fonte EC/USBX do autor sobre esconder esse EC não descreve esse
+trecho do AML distribuído. Não deve ser usado isoladamente para justificar patches.
+
+Limite: isso é uma comparação inicial, não uma portabilidade concluída. A análise
+conjunta das 16 tabelas DSDT/SSDT do SSDTTime, sem as cópias duplicadas da coleta
+anterior, ainda encontra `AE_ALREADY_EXISTS`, incluindo `\_SB.TPM`.
+As referências externas e os caminhos condicionais precisam de avaliação própria;
+esse resultado do descompilador não prova defeito em execução nem justifica, por si
+só, excluir uma tabela ou criar um patch. Nenhum AML foi gerado dessa análise para a EFI.
+
+## O que a EFI do autor carrega
+
+A listagem abaixo vem das entradas habilitadas em `ACPI > Add` nos dois plist do
+commit-base `4cb55f4`. O OpenCore substitui a DSDT do firmware ao carregar uma
+tabela com assinatura `DSDT`. Tabelas `SSDT` são adicionadas e podem referenciar
+objetos definidos na DSDT ou em outros SSDTs. Consulte a seção *ACPI / Add* da
+[documentação do OpenCore 1.0.8](https://github.com/acidanthera/OpenCorePkg/blob/1.0.8/Docs/Configuration.pdf).
+
+| Tabela ativa | Instalador | Sistema | Função e o que conferir após a atualização |
+| --- | :---: | :---: | --- |
+| `DSDT.aml` | Sim | Sim | DSDT completa e modificada do autor. Definir se os ajustes necessários podem ser aplicados à tabela nativa durante o boot. Se houver motivo para uma substituição completa, usar a DSDT da BIOS instalada como base. |
+| `SSDT-AWAC.aml` | Sim | Sim | Ajusta `STAS` para usar o RTC legado. Conferir `STAS`, a lógica do AWAC e o RTC do firmware. |
+| `SSDT-EC-USBX.aml` | Sim | Sim | Injeta um dispositivo `EC` e propriedades de alimentação USB. Conferir o caminho de `LPCB`, o EC real e colisões com `EC` ou `USBX`. |
+| `SSDT-PLUG-ALT.aml` | Sim | Sim | Adiciona objetos `Processor` e `plugin-type`. Conferir os IDs e os objetos de CPU com a topologia do i7 e as tabelas da BIOS instalada. |
+| `SSDT-XOSI.aml` | Sim | Sim | Define `XOSI`, usado pelas chamadas renomeadas na DSDT do autor. Avaliar o caminho das teclas de brilho junto com o eventual redirecionamento das chamadas necessárias. |
+| `SSDT-PS2K-RMCF.aml` | Sim | Sim | Configura o VoodooPS2 para mapear `PrtSc` a F13. Conferir `LPCB.PS2K` e um eventual `RMCF` já existente. |
+| `SSDT-DeepIdle.aml` | — | Sim | Adiciona `LPS0` e `LXEN` para repouso S0. Conferir se os nomes já existem e testar suspensão em conjunto com os drivers do autor. |
+| `SSDT-RTXKEXT.aml` | — | Sim | Expõe métodos usados pelo G15Fan para controlar energia da GPU. `PG01` aparece no SSDT OEM `NvdTable` da 1.35.0, em um bloco condicional. Conferir esse caminho, `AMWW`, os métodos de energia e o comportamento real da RTX 3050. |
+| `SSDT-PNLF.aml` | — | Sim | Cria o dispositivo de brilho sob `\_SB.PC00.GFX0`. Conferir o caminho do vídeo integrado e o brilho do painel com o driver gráfico escolhido. |
+| `SSDT-LIDWAKE.aml` | — | Sim | Adiciona `PRW0` em `\_SB.LID0` com GPE `0x6E`. Conferir tampa, roteamento do evento e despertar real. |
+| `SSDT-BTRK.aml` | — | Sim | Expõe comandos para o G15Fan controlar o reset do Bluetooth. A DSDT da 1.35.0 contém `BTRK` e `GBTR`; conferir também `AMWW` e a ligação do GPIO na BIOS instalada. |
+
+Os dois perfis usam também `ACPI > Delete` para remover a primeira tabela com
+assinatura `SSDT` e OEM Table ID `xh_Dell_`. Ela aparece como `SSDT11.aml` na
+coleta SSDTTime 1.35.0. A necessidade dessa exclusão ainda precisa ser avaliada
+com a BIOS instalada e o comportamento do USB. `ACPI > Patch` está vazio nos
+dois perfis. As alterações descritas no passo 4 vêm no `DSDT.aml` já compilado.
+
+## Correspondência entre fonte e AML
+
+Os nove `.dsl` de `acpi-src` correspondem a SSDTs da EFI. Todos compilaram com
+iASL 20250807 em uma pasta de análise. Sete reproduziram o corpo AML entregue
+byte a byte, descontando o cabeçalho ACPI de 36 bytes. São `AWAC`, `DeepIdle`,
+`EC-USBX`, `PLUG-ALT`, `PS2K-RMCF`, `RTXKEXT` e `XOSI`.
+
+Em `BTRK` e `LIDWAKE`, o corpo AML entregue é idêntico ao trecho final do corpo
+recompilado. A recompilação acrescentou declarações `External` antes desse
+trecho. As descompilações mostraram os mesmos métodos de reset e a mesma
+propriedade `PRW0`, respectivamente. Para ler `BTRK`, o iASL recebeu as
+assinaturas de `BTRK` e `GBTR` observadas na DSDT 1.35.0. A comparação confirma
+que os nove fontes correspondem ao código entregue. O funcionamento de cada
+SSDT ainda depende dos objetos que a BIOS publica durante o boot.
+
+`DSDT.aml` e `SSDT-PNLF.aml` estão na EFI em formato compilado. O checkout não
+traz os `.dsl` correspondentes em `acpi-src`.
+
+## Como decidir o que portar
+
+O dump nativo já traz a DSDT em AML. O iASL consegue descompilá-la para DSL, com
+as demais tabelas como apoio para resolver referências. Esse DSL reconstruído
+serve para comparar caminhos e métodos mesmo sem os fontes originais da Dell.
+Antes de usá-lo para gerar um AML de boot, seria preciso resolver as referências
+e conferir a recompilação. A comparação com a DSDT modificada do autor confirma
+as diferenças em `_OSI`/`XOSI` e na definição de `_S3`. Para atribuir todas as
+outras diferenças ao autor seria necessário também um dump original da BIOS 1.0.
+
+Na 1.35.0, `_S3` está dentro de `If (SS3)`, `SS3` é inicializado com `Zero` no
+DSL e a FADT anuncia baixo consumo em S0 (`LOW_POWER_S0_IDLE_CAPABLE`). Isso pede
+verificar o estado efetivo na BIOS final antes de decidir pela remoção de `_S3`.
+O par `_OSI`/`XOSI` também tem uma finalidade específica, as teclas de brilho.
+Se a adaptação usar a DSDT nativa, carregar só `SSDT-XOSI` não redireciona as
+chamadas. O redirecionamento deve ser avaliado com as referências da BIOS final.
+
+Para o primeiro boot de instalação, a proposta é usar a DSDT da BIOS instalada
+e revisar as cinco adições do perfil de instalação, além da exclusão de
+`xh_Dell_`. Cada SSDT pode ser reaproveitado se as dependências forem compatíveis.
+Se o nome ou o comportamento de um objeto de firmware mudou, portar o ajuste
+específico. O perfil do sistema acrescenta brilho do painel e ajustes de repouso,
+energia da RTX e Bluetooth que podem ser validados depois de estabelecer o boot.
+Se houver evidência de que um ajuste é necessário já no instalador, ele entra
+no perfil de instalação. Essa ordem preserva a finalidade dos dois perfis.
+
+## Próxima BIOS
+
+Manter estas coletas como referência da **1.35.0**. A coleta da próxima BIOS deve
+ficar em outra pasta com a versão efetivamente confirmada, sem sobrescrever esta.
+Comparar tabelas, identificadores e métodos antes de adaptar os perfis do OpenCore.
+Não substituir a DSDT da EFI por um dump nativo como etapa automática.

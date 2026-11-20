@@ -1,0 +1,692 @@
+[
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-DSDT-DellInc.aml",
+    "signature": "DSDT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 653360,
+    "headerLength": 653360,
+    "checksumModulo256": 0,
+    "sha256": "71A1652BE0EDE98C96887FA1ED79A2B0E8C0450D2F5221133F2F1ADC5A12DC22",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "DSDT.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-FACP-DellInc.aml",
+    "signature": "FACP",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 276,
+    "headerLength": 276,
+    "checksumModulo256": 0,
+    "sha256": "6FF281FDB9D73B12EA01597139F45D73881705C65D3C52267522FCC4DFCEDE3D",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "FACP.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-ADebTabl.aml",
+    "signature": "SSDT",
+    "oemId": "Intel",
+    "oemTableId": "ADebTabl",
+    "length": 324,
+    "headerLength": 324,
+    "checksumModulo256": 0,
+    "sha256": "D7A5B0A679D0F3D78B0DBB90B69754A485044258CD4CB13B2D8BC0A6F6BE62C5",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT14.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-AWCCTABL.aml",
+    "signature": "SSDT",
+    "oemId": "ALWARE",
+    "oemTableId": "AWCCTABL",
+    "length": 8127,
+    "headerLength": 8127,
+    "checksumModulo256": 0,
+    "sha256": "D69665FBB7B1A418DB528972D88842ECB51F2E7BBAB47D5CB0365CFFF77CF9ED",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT1.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-CpuSsdt.aml",
+    "signature": "SSDT",
+    "oemId": "CpuRef",
+    "oemTableId": "CpuSsdt",
+    "length": 23637,
+    "headerLength": 23637,
+    "checksumModulo256": 0,
+    "sha256": "D0184716833301502D0B8DF9BFAFD5B065131A05800AA3186417A95681A8E52C",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT2.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-DellRtd3.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "DellRtd3",
+    "length": 5879,
+    "headerLength": 5879,
+    "checksumModulo256": 0,
+    "sha256": "F841B3D6B6C67329ACF44A8784933B413078AD61C544C6F8FEAB48C6D9119FC9",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT4.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-DptfTabl.aml",
+    "signature": "SSDT",
+    "oemId": "DptfTb",
+    "oemTableId": "DptfTabl",
+    "length": 26061,
+    "headerLength": 26061,
+    "checksumModulo256": 0,
+    "sha256": "8F0A940DD2C5D0F9B33745EC0D8968F706224A465E4372CAF1E6410272832F0C",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT3.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-IgfxSsdt.aml",
+    "signature": "SSDT",
+    "oemId": "INTEL",
+    "oemTableId": "IgfxSsdt",
+    "length": 4777,
+    "headerLength": 4777,
+    "checksumModulo256": 0,
+    "sha256": "435A7BEB0F2C25C948C76CA73FF87D461478B7AA136D096B5FA48BD82CBA25CB",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT5.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-NvdTable.aml",
+    "signature": "SSDT",
+    "oemId": "DELL\u0000\u0000",
+    "oemTableId": "NvdTable",
+    "length": 41660,
+    "headerLength": 41660,
+    "checksumModulo256": 0,
+    "sha256": "5D604297D5341E6E2C050C4AD0C7ACCE65289E5D6749F57F1A0BA6B062D3C348",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT10.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-Pmax_Dev.aml",
+    "signature": "SSDT",
+    "oemId": "PmaxDv",
+    "oemTableId": "Pmax_Dev",
+    "length": 908,
+    "headerLength": 908,
+    "checksumModulo256": 0,
+    "sha256": "7D9BF2ACF8E4B1BDCC6C1654EDC3E77A5EC9E6A08F50795431C8797E0C054C23",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-PtidDevc.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "PtidDevc",
+    "length": 2884,
+    "headerLength": 2884,
+    "checksumModulo256": 0,
+    "sha256": "84CC7F6C1F5B4EF15EA7C9D6F7356DD405EB41F4C65DC0B5613FBF9EEA4D440E",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT7.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-SocCmn.aml",
+    "signature": "SSDT",
+    "oemId": "SocCmn",
+    "oemTableId": "SocCmn",
+    "length": 14810,
+    "headerLength": 14810,
+    "checksumModulo256": 0,
+    "sha256": "F2028CE43DC53C1F1944A5F4650C58EA9AC50D1919299A09FDC8214ED88B5C22",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT13.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-SocGpe.aml",
+    "signature": "SSDT",
+    "oemId": "SocGpe",
+    "oemTableId": "SocGpe",
+    "length": 14810,
+    "headerLength": 14810,
+    "checksumModulo256": 0,
+    "sha256": "B92E63EF381E84FD2AEA59316C495695CD4521D2434EC0D21EF34EA6F7C558FC",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT12.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-TbtTypeC.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "TbtTypeC",
+    "length": 37863,
+    "headerLength": 37863,
+    "checksumModulo256": 0,
+    "sha256": "43579A8D306BCC258A544FF9722DB160AAE22EFFC5D0D52E2D6791650149B961",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT8.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-Tpm2Tabl.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "Tpm2Tabl",
+    "length": 1550,
+    "headerLength": 1550,
+    "checksumModulo256": 0,
+    "sha256": "9AAC2CF593388183C4EBF30F6A672C4FCF3DE166B957233AB9309E515C29B4FC",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT9.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-UsbCTabl.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "UsbCTabl",
+    "length": 4288,
+    "headerLength": 4288,
+    "checksumModulo256": 0,
+    "sha256": "ABA10C583334725BEF272CDE28A0630753F302EC21139ABD06405BFB640F91D0",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT6.aml"
+    }
+  },
+  {
+    "collection": "bios-1.35.0",
+    "file": "registry-SSDT-xh_Dell_.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "xh_Dell_",
+    "length": 3480,
+    "headerLength": 3480,
+    "checksumModulo256": 0,
+    "sha256": "8D858E277449CA56E5101CD8FCAFC477D010DF0917A805329033E7851905A4DB",
+    "equivalent": {
+      "collection": "SSDTTime-1.35.0",
+      "file": "SSDT11.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "APIC.aml",
+    "signature": "APIC",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 476,
+    "headerLength": 476,
+    "checksumModulo256": 0,
+    "sha256": "72EF0E78662CD7E58C737AC1C3031DFFD59078B1FA2AAF63A0DC6D6BF283AEB7",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "BGRT.aml",
+    "signature": "BGRT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 56,
+    "headerLength": 56,
+    "checksumModulo256": 0,
+    "sha256": "703516806A10F216CC218A43D5B7AB5CCEDDD57A6A80299E3C5908771CC4CE04",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "BOOT.aml",
+    "signature": "BOOT",
+    "oemId": "DELL",
+    "oemTableId": "CBX3",
+    "length": 40,
+    "headerLength": 40,
+    "checksumModulo256": 0,
+    "sha256": "95A3C83C1F4CDB9BDE9F2E8AC87931287D18903F72C82B382C2194B81BC5A552",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "DBG2.aml",
+    "signature": "DBG2",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 84,
+    "headerLength": 84,
+    "checksumModulo256": 0,
+    "sha256": "E9C30AF27AEA2FAE1F5C569A207C82396E3823C7FCFAC5198438264925A3DC8F",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "DBGP.aml",
+    "signature": "DBGP",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 52,
+    "headerLength": 52,
+    "checksumModulo256": 0,
+    "sha256": "E2554BF4FA7884EEBECDC3410113190E946C4885C30CB0AA0A5335E332205520",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "DMAR.aml",
+    "signature": "DMAR",
+    "oemId": "INTEL",
+    "oemTableId": "Dell Inc",
+    "length": 136,
+    "headerLength": 136,
+    "checksumModulo256": 0,
+    "sha256": "E95DDD544197B2D508653312C2DECB83316E8551EC89953E01A79777D9486DA1",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "DSDT.aml",
+    "signature": "DSDT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 653360,
+    "headerLength": 653360,
+    "checksumModulo256": 0,
+    "sha256": "71A1652BE0EDE98C96887FA1ED79A2B0E8C0450D2F5221133F2F1ADC5A12DC22",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-DSDT-DellInc.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "FACP.aml",
+    "signature": "FACP",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 276,
+    "headerLength": 276,
+    "checksumModulo256": 0,
+    "sha256": "6FF281FDB9D73B12EA01597139F45D73881705C65D3C52267522FCC4DFCEDE3D",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-FACP-DellInc.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "FPDT.aml",
+    "signature": "FPDT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 52,
+    "headerLength": 52,
+    "checksumModulo256": 0,
+    "sha256": "65616106C4B473C47E78F83012CA80B29098F2B4C506F7FA1B07061928EE6A3E",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "HPET.aml",
+    "signature": "HPET",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 56,
+    "headerLength": 56,
+    "checksumModulo256": 0,
+    "sha256": "7805E2E4D1ED6292373DBF27D2FC1486D31D2FC82BEE964A4C1E1DA675C58700",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "LPIT.aml",
+    "signature": "LPIT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 204,
+    "headerLength": 204,
+    "checksumModulo256": 0,
+    "sha256": "3581049652EC75C6AFD4FF3EC5ADFC453DC28B2F18DF03CEBCD3CC9D788C4B83",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "MCFG.aml",
+    "signature": "MCFG",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 60,
+    "headerLength": 60,
+    "checksumModulo256": 0,
+    "sha256": "E0A58EB027D8B0523AB0A3B041D4F2E7D811130F871EF930B7D9ED03DEAFC8E8",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "NHLT.aml",
+    "signature": "NHLT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 7010,
+    "headerLength": 7010,
+    "checksumModulo256": 0,
+    "sha256": "E5BA2955E9487FF27EE9C60E6EDAF86E74A37ED64CDA8016E2E00A8C818259B9",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "PHAT.aml",
+    "signature": "PHAT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 1286,
+    "headerLength": 1286,
+    "checksumModulo256": 0,
+    "sha256": "DC0D26E8376D6095D6DA9E6E86CF59D58E35F59A8A913D2B46859DFBC701FA96",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT.aml",
+    "signature": "SSDT",
+    "oemId": "PmaxDv",
+    "oemTableId": "Pmax_Dev",
+    "length": 908,
+    "headerLength": 908,
+    "checksumModulo256": 0,
+    "sha256": "7D9BF2ACF8E4B1BDCC6C1654EDC3E77A5EC9E6A08F50795431C8797E0C054C23",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-Pmax_Dev.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT1.aml",
+    "signature": "SSDT",
+    "oemId": "ALWARE",
+    "oemTableId": "AWCCTABL",
+    "length": 8127,
+    "headerLength": 8127,
+    "checksumModulo256": 0,
+    "sha256": "D69665FBB7B1A418DB528972D88842ECB51F2E7BBAB47D5CB0365CFFF77CF9ED",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-AWCCTABL.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT10.aml",
+    "signature": "SSDT",
+    "oemId": "DELL\u0000\u0000",
+    "oemTableId": "NvdTable",
+    "length": 41660,
+    "headerLength": 41660,
+    "checksumModulo256": 0,
+    "sha256": "5D604297D5341E6E2C050C4AD0C7ACCE65289E5D6749F57F1A0BA6B062D3C348",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-NvdTable.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT11.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "xh_Dell_",
+    "length": 3480,
+    "headerLength": 3480,
+    "checksumModulo256": 0,
+    "sha256": "8D858E277449CA56E5101CD8FCAFC477D010DF0917A805329033E7851905A4DB",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-xh_Dell_.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT12.aml",
+    "signature": "SSDT",
+    "oemId": "SocGpe",
+    "oemTableId": "SocGpe",
+    "length": 14810,
+    "headerLength": 14810,
+    "checksumModulo256": 0,
+    "sha256": "B92E63EF381E84FD2AEA59316C495695CD4521D2434EC0D21EF34EA6F7C558FC",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-SocGpe.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT13.aml",
+    "signature": "SSDT",
+    "oemId": "SocCmn",
+    "oemTableId": "SocCmn",
+    "length": 14810,
+    "headerLength": 14810,
+    "checksumModulo256": 0,
+    "sha256": "F2028CE43DC53C1F1944A5F4650C58EA9AC50D1919299A09FDC8214ED88B5C22",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-SocCmn.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT14.aml",
+    "signature": "SSDT",
+    "oemId": "Intel",
+    "oemTableId": "ADebTabl",
+    "length": 324,
+    "headerLength": 324,
+    "checksumModulo256": 0,
+    "sha256": "D7A5B0A679D0F3D78B0DBB90B69754A485044258CD4CB13B2D8BC0A6F6BE62C5",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-ADebTabl.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT2.aml",
+    "signature": "SSDT",
+    "oemId": "CpuRef",
+    "oemTableId": "CpuSsdt",
+    "length": 23637,
+    "headerLength": 23637,
+    "checksumModulo256": 0,
+    "sha256": "D0184716833301502D0B8DF9BFAFD5B065131A05800AA3186417A95681A8E52C",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-CpuSsdt.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT3.aml",
+    "signature": "SSDT",
+    "oemId": "DptfTb",
+    "oemTableId": "DptfTabl",
+    "length": 26061,
+    "headerLength": 26061,
+    "checksumModulo256": 0,
+    "sha256": "8F0A940DD2C5D0F9B33745EC0D8968F706224A465E4372CAF1E6410272832F0C",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-DptfTabl.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT4.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "DellRtd3",
+    "length": 5879,
+    "headerLength": 5879,
+    "checksumModulo256": 0,
+    "sha256": "F841B3D6B6C67329ACF44A8784933B413078AD61C544C6F8FEAB48C6D9119FC9",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-DellRtd3.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT5.aml",
+    "signature": "SSDT",
+    "oemId": "INTEL",
+    "oemTableId": "IgfxSsdt",
+    "length": 4777,
+    "headerLength": 4777,
+    "checksumModulo256": 0,
+    "sha256": "435A7BEB0F2C25C948C76CA73FF87D461478B7AA136D096B5FA48BD82CBA25CB",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-IgfxSsdt.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT6.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "UsbCTabl",
+    "length": 4288,
+    "headerLength": 4288,
+    "checksumModulo256": 0,
+    "sha256": "ABA10C583334725BEF272CDE28A0630753F302EC21139ABD06405BFB640F91D0",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-UsbCTabl.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT7.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "PtidDevc",
+    "length": 2884,
+    "headerLength": 2884,
+    "checksumModulo256": 0,
+    "sha256": "84CC7F6C1F5B4EF15EA7C9D6F7356DD405EB41F4C65DC0B5613FBF9EEA4D440E",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-PtidDevc.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT8.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "TbtTypeC",
+    "length": 37863,
+    "headerLength": 37863,
+    "checksumModulo256": 0,
+    "sha256": "43579A8D306BCC258A544FF9722DB160AAE22EFFC5D0D52E2D6791650149B961",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-TbtTypeC.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "SSDT9.aml",
+    "signature": "SSDT",
+    "oemId": "DELL",
+    "oemTableId": "Tpm2Tabl",
+    "length": 1550,
+    "headerLength": 1550,
+    "checksumModulo256": 0,
+    "sha256": "9AAC2CF593388183C4EBF30F6A672C4FCF3DE166B957233AB9309E515C29B4FC",
+    "equivalent": {
+      "collection": "bios-1.35.0",
+      "file": "registry-SSDT-Tpm2Tabl.aml"
+    }
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "TPM2.aml",
+    "signature": "TPM2",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 76,
+    "headerLength": 76,
+    "checksumModulo256": 0,
+    "sha256": "01A32DFB72E0114653825941625658A5A7410641DC23E0A307625303AD02C997",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "WSMT.aml",
+    "signature": "WSMT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 40,
+    "headerLength": 40,
+    "checksumModulo256": 0,
+    "sha256": "37D10E2005ADF950D36D092792282B2E872A9D3A9494040D9D0DF65A12EF9D59",
+    "equivalent": null
+  },
+  {
+    "collection": "SSDTTime-1.35.0",
+    "file": "XSDT.aml",
+    "signature": "XSDT",
+    "oemId": "DELL",
+    "oemTableId": "Dell Inc",
+    "length": 276,
+    "headerLength": 276,
+    "checksumModulo256": 0,
+    "sha256": "440D89D58FD0A9E0F903BF551740F34903D0D959070E5742963D31456702542A",
+    "equivalent": null
+  }
+]
