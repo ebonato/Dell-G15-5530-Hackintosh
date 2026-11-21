@@ -1,4 +1,4 @@
-# Coletas ACPI nativas — BIOS 1.35.0
+# Coletas ACPI nativas — BIOS 1.35.0 e 1.37.0
 
 Estas tabelas são evidência para comparação, não arquivos para copiar para a EFI.
 As duas coletas ficam disponíveis ao Git; não há regra ignorando `acpi-native`.
@@ -142,9 +142,21 @@ energia da RTX e Bluetooth que podem ser validados depois de estabelecer o boot.
 Se houver evidência de que um ajuste é necessário já no instalador, ele entra
 no perfil de instalação. Essa ordem preserva a finalidade dos dois perfis.
 
-## Próxima BIOS
+## BIOS 1.37.0 confirmada no Windows
 
-Manter estas coletas como referência da **1.35.0**. A coleta da próxima BIOS deve
-ficar em outra pasta com a versão efetivamente confirmada, sem sobrescrever esta.
-Comparar tabelas, identificadores e métodos antes de adaptar os perfis do OpenCore.
-Não substituir a DSDT da EFI por um dump nativo como etapa automática.
+A coleta `SSDTTime-1.37.0/` tem os mesmos 32 nomes da coleta SSDTTime anterior.
+Os 32 arquivos passam nas verificações de tamanho e checksum ACPI. Por SHA-256,
+30 arquivos são idênticos, incluindo DSDT, todos os 15 SSDTs, FACP, APIC e DMAR.
+O [manifesto da 1.37.0](manifest-1.37.0.json) liga cada arquivo à tabela anterior
+e registra se o conteúdo mudou.
+
+| Tabela | Diferença decodificada com iASL 20250807 |
+| --- | --- |
+| `BGRT.aml` | `Image Address` passou de `0x575BC018` para `0x575BB018`. É o endereço em memória da imagem de boot. Tipo, status, orientação e coordenadas permaneceram iguais. O checksum mudou de `0x3E` para `0x4E`. |
+| `PHAT.aml` | O campo de versão do registro com GUID `03285589-1E37-4B72-A5F9-70D1ADAE5D34`, produtor `INTC`, passou de `0x0000000117000000` para `0x0000000119000000`. O checksum mudou de `0xB6` para `0xB4`. O GUID não identifica por si só o componente por nome. |
+
+Essas duas alterações estão em tabelas de dados. Não apareceu mudança nos
+métodos AML coletados. Isso permite reaproveitar a análise das dependências da
+1.35.0 para preparar a EFI da 1.37.0. A comparação cobre o conteúdo do dump e
+não testa a execução dos métodos nem o comportamento do firmware.
+[Especificação ACPI 6.6](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html)

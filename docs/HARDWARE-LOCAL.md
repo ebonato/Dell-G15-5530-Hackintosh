@@ -1,7 +1,8 @@
 # Start — adaptação do Dell G15 5530
 
-Estado em 20/11/2026: preparação antes da atualização de BIOS. A versão confirmada
-é **1.35.0**; o pacote 1.37.0 foi informado, mas sua instalação ainda não foi confirmada.
+Estado em 20/11/2026: BIOS **1.37.0** confirmada no Windows. A versão 1.35.0 é
+a referência anterior à atualização. O [comparativo ACPI](../acpi-native/README.md)
+mostra 30 tabelas idênticas em 32, incluindo a DSDT e todos os SSDTs.
 
 | Item | Alvo deste fork |
 | --- | --- |
@@ -12,9 +13,9 @@ Estado em 20/11/2026: preparação antes da atualização de BIOS. A versão con
 | Gráficos | Hybrid/Optimus, conforme cenário informado |
 | Sistema | macOS Tahoe em NVMe dedicado, separado do Windows |
 
-CPU, IDs das GPUs e BIOS 1.35.0 foram conferidos no Windows. Tela, modo híbrido e
+CPU, IDs das GPUs e BIOS 1.37.0 foram conferidos no Windows. Tela, modo híbrido e
 destinação do SSD seguem as informações do usuário. O comportamento no macOS ainda
-não foi testado. Não foram alterados firmware, modo de armazenamento, discos ou boot UEFI.
+precisa ser testado.
 
 ## Os seis pontos resolvidos
 
@@ -51,10 +52,9 @@ não foi testado. Não foram alterados firmware, modo de armazenamento, discos o
    diferentes. A correspondência, os hashes e a comparação inicial com a DSDT do
    autor estão no [registro ACPI](../acpi-native/README.md).
 
-6. **BIOS antes da adaptação final.** A coleta 1.35.0 fica como referência anterior
-   à atualização. Nenhum ajuste específico da 1.37.0 foi presumido. Após confirmar
-   a versão instalada e obter seu dump, comparar com a 1.35.0 e com a tabela do
-   autor antes de modificar novamente os perfis e os SSDTs.
+6. **BIOS da adaptação.** A coleta 1.35.0 é a referência histórica e a 1.37.0 é
+   a base do primeiro teste. Os métodos ACPI capturados são idênticos. A diferença
+   entre a DSDT nativa e a DSDT modificada do autor continua relevante para a EFI.
 
 ## SIP e ponto de partida
 
@@ -75,7 +75,34 @@ comparável evita misturar ajustes não testados com o processo de atualização
 BIOS. O próximo trabalho será adaptar essa base ao firmware final e ao hardware
 confirmado, preservando a função distinta de cada perfil.
 
-## Verificações desta revisão
+## Preparação do instalador Tahoe
+
+- A recuperação foi baixada diretamente da Apple com `macrecovery` do OpenCorePkg
+  1.0.8. A verificação de `BaseSystem.dmg` pela `BaseSystem.chunklist` passou.
+  A recuperação baixa o sistema durante a instalação, por isso precisa de internet.
+- Rede confirmada no Windows: Realtek `10EC:8168` e Intel AX201 `8086:7A70`. Os
+  dois IDs constam nos kexts de rede do perfil do instalador. O Wi-Fi usa uma
+  versão alpha de AirportItlwm. Ter Ethernet à mão reduz a dependência desse kext.
+- O Micron 2550 (GPT) continua sendo o disco de boot do Windows. O NVMe dedicado
+  de 512 GB ainda aparece como MBR e será o único candidato a GPT/APFS na etapa
+  de instalação. Confirmar o alvo antes de qualquer operação que apague dados.
+- O APIC habilita 20 processadores lógicos, com IDs de 0 a 19, todos presentes
+  no SSDT PLUG-ALT da EFI. Isso confirma a cobertura dos IDs. O teste de CPU no
+  macOS ainda é necessário.
+- O pendrive conectado foi detectado no Windows na porta lógica SuperSpeed
+  `\_SB.PC00.XHCI.RHUB.SS03`. Essa é uma porta conhecida para o teste inicial.
+- O perfil de instalação ainda precisa da adaptação para DSDT nativa, revisão dos
+  SSDTs e da identificação SMBIOS local. A primeira inicialização também serve
+  para testar a porta USB usada pelo instalador e a rede. Os dados atuais bastam
+  para iniciar a preparação da EFI. Um mapa USB completo fica para validação
+  caso alguma porta falhe ou para o ajuste posterior do sistema.
+- O Secure Boot UEFI estava ligado na leitura após a atualização. Mantê-lo até
+  o primeiro teste pelo F12. Os binários de boot da EFI atual não têm assinatura
+  incorporada. Antes de desligar, conferir o estado atual do BitLocker ou da
+  Criptografia do Dispositivo em C:. Se houver proteção, guardar a chave e tratar
+  a mudança antes do teste. O Windows segue pelo Windows Boot Manager em UEFI.
+
+## Verificações do estado Start
 
 - Os dois perfis e o par fonte/AML EC/USBX conferidos contra os blobs do commit-base.
 - Ambos os perfis validados com ocvalidate **1.0.8**, sem problemas de configuração.

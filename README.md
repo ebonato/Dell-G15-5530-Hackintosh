@@ -3,15 +3,13 @@
 Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
 10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
 
-**Estado: preparação anterior à atualização da BIOS.** A versão confirmada é
-1.35.0; 1.37.0 ainda não foi confirmada. As alterações funcionais anteriores na
-EFI foram desfeitas: os dois perfis e o SSDT EC/USBX estão exatamente como no
-commit-base upstream deste checkout. Eles ainda contêm a DSDT e os ajustes do
-i5/RTX 4050 do autor; não representam uma EFI já adaptada/validada para este i7.
+**Estado: BIOS 1.37.0 confirmada no Windows e recuperação do Tahoe baixada.**
+A comparação ACPI encontrou diferenças apenas em BGRT e PHAT. Os perfis da EFI
+ainda são a referência do autor para i5/RTX 4050. A EFI para o primeiro teste
+será preparada para a DSDT nativa e o hardware deste i7.
 
-Leia [o estado Start e os seis pontos corrigidos](docs/HARDWARE-LOCAL.md) e
-[a comparação dos dumps ACPI](acpi-native/README.md). O próximo marco é confirmar
-a BIOS após a atualização e obter uma nova coleta antes de adaptar a EFI.
+Consulte [o estado da preparação](docs/HARDWARE-LOCAL.md) e
+[a comparação dos dumps ACPI](acpi-native/README.md).
 
 ## Referência upstream — equipamento e resultados do autor
 
