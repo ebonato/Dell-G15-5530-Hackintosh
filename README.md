@@ -3,9 +3,10 @@
 Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
 10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
 
-**Estado: BIOS 1.37.0 confirmada e pendrive pronto para o primeiro teste.**
-A recuperação do Tahoe e os perfis com SMBIOS local e DSDT nativa estão no
-pendrive TAHOE. O primeiro teste validará o boot até a Recuperação.
+**Estado: pendrive ajustado após o primeiro teste na BIOS 1.37.0.**
+O OpenCore abriu o menu, mas o tempo de espera terminou e ele selecionou
+o Windows. O perfil de instalação agora mostra a Recuperação, aguarda uma
+escolha e inclui o driver para o volume HFS+ dentro do DMG da Apple.
 
 Consulte [o estado da preparação](docs/HARDWARE-LOCAL.md) e
 [a comparação dos dumps ACPI](acpi-native/README.md).

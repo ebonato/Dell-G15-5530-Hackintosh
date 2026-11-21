@@ -28,11 +28,10 @@ precisa ser testado.
    uma seleção automática por fase. O procedimento upstream coloca o perfil de
    instalação sob o nome `config.plist` na mídia usada para instalar.
 
-2. **OpenHfsPlus removido.** O arquivo acrescentado e sua documentação de licença
-   foram removidos. Não há entradas dele nos perfis restaurados. Não foi observada
-   falha que justificasse adicioná-lo. O destino APFS, sozinho, não determina o
-   formato de todos os componentes de um instalador; isso será verificado com a
-   mídia efetivamente usada, se surgir uma necessidade concreta.
+2. **OpenHfsPlus no instalador.** O driver havia sido removido por falta de
+   evidência. A inspeção do `BaseSystem.dmg` baixado para o pendrive encontrou
+   a partição `Apple_HFS`. Por isso o driver do OpenCorePkg 1.0.8 foi habilitado
+   somente no instalador. [Licença](third-party/OpenHfsPlus.txt).
 
 3. **EC/USBX restaurado, fonte e binário.** A condição `_STA` que acrescentei ao
    USBX restringia a apresentação desse dispositivo a Darwin. Não corrigia nenhum
@@ -109,6 +108,20 @@ e energia que precisam de testes próprios com a RTX 3050.
   incorporada. Antes de desligar, conferir o estado atual do BitLocker ou da
   Criptografia do Dispositivo em C:. Se houver proteção, guardar a chave e tratar
   a mudança antes do teste. O Windows segue pelo Windows Boot Manager em UEFI.
+
+## Primeiro teste do pendrive
+
+No log de 20/11/2026 às 23:02:55, o OpenCore 1.0.8 DEBUG iniciou, expôs os SSDTs
+do instalador e aplicou o SMBIOS. O menu abriu por volta de 6 s. Após os cinco
+segundos de espera, o OpenCore chamou o Windows Boot Manager. O log termina
+nessa transição. Não houve tentativa de carregar o macOS registrada.
+
+O perfil de instalação no repositório e no pendrive agora tem
+`HideAuxiliary=false` e `Timeout=0`. Ele inclui `OpenHfsPlus.efi` para ler a
+partição HFS+ interna de `BaseSystem.dmg`. O arquivo da recuperação, o SMBIOS
+local, a configuração ACPI e o perfil pós-instalação foram preservados.
+O próximo teste é selecionar a entrada de Recuperação no menu do OpenCore.
+O log original pode conter os identificadores do SMBIOS e fica no pendrive.
 
 ## Verificações do estado Start
 
