@@ -224,7 +224,8 @@ declaração de `\_SB.PC00.RP25` para fora de `If (PCHS == 0x04)` e
 ajusta o tamanho desse bloco. As outras declarações continuam condicionais.
 A regra exige a assinatura `DSDT`, o OEM Table ID `Dell Inc`, o tamanho
 de 653.360 bytes e a sequência exata do AML da 1.37.0. Ela é aplicada à
-tabela publicada pelo firmware durante o boot.
+tabela publicada pelo firmware durante o boot. O perfil de sistema no
+repositório também inclui a mesma regra para a DSDT 1.37.0.
 
 Na simulação com a DSDT corrigida e as mesmas SSDTs da tentativa, o
 AcpiExec 20160930 carregou as 19 tabelas AML e localizou `RP25`, `STAS`,
@@ -237,7 +238,22 @@ um boot do pendrive chegou à interface da Recuperação no Dell.
 O perfil de instalação já cobre FakeEC Laptop e USBX com `SSDT-EC-USBX`,
 PluginType com `SSDT-PLUG-ALT` e RTCAWAC com `SSDT-AWAC`. Ao gerar
 RTCAWAC para este dump, o SSDTTime também selecionou `STAS` e preservou
-os recursos do RTC. O `SSDT-PNLF` fica no perfil pós-instalação.
+os recursos do RTC. FakeEC Laptop gerou o mesmo dispositivo `EC` de
+HID `ACID0001` sob `\_SB.PC00.LPCB`, ativo em Darwin. O PluginType
+regenerado tem o mesmo corpo AML do arquivo da EFI, com diferença no
+cabeçalho ACPI. O USBX gerado usa valores padrão de 2100 para limite de
+corrente e 5100 para alimentação. A EFI usa 3000 e 9600, respectivamente.
+O mapeamento de portas USB e as propriedades de alimentação do USBX são
+ajustes independentes.
+
+Os ajustes dependentes do hardware devem partir da DSDT e dos SSDTs do
+nosso Dell. Para brilho e repouso, conferir os caminhos e condições de
+`GFX0`, `OSID`, `SMEE`, `LID0` e os GPEs antes de portar mudanças.
+Para a RTX 3050 e Bluetooth, conferir os recursos de energia e o GPIO e
+testar no Dell. A carga das tabelas em simulação confirma o namespace
+da combinação, enquanto o efeito físico requer teste próprio.
+
+O `SSDT-PNLF` fica no perfil pós-instalação.
 `SSDT-XOSI` precisa do redirecionamento de chamadas `_OSI` para ter efeito
 e fica desativado com a DSDT nativa.
 

@@ -16,7 +16,7 @@ precisa de uma validação própria antes de ir para a EFI do SSD.
 | --- | --- | --- | --- |
 | CPU | i7-13650HX, 6P + 8E, 20 threads | i5-13450HX, 6P + 4E | Core 5 210H |
 | Vídeo | UHD `8086:A78B` com tela de 120 Hz em Hybrid/Optimus. RTX 3050 6 GB Laptop `10DE:25EC` | UHD A78B e painel FHD 120 Hz. RTX 4050 Laptop para Metal e HDMI | RTX 3050 6 GB Laptop ligada ao painel pelo MUX em Ultimate. NullMoth após a instalação |
-| ACPI | BIOS 1.37.0, DSDT nativa e ajuste RP25 para o instalador | BIOS 1.0, DSDT modificada para brilho e repouso | SSDTs geradas a partir do dump do próprio ASUS |
+| ACPI | BIOS 1.37.0, DSDT nativa e ajuste RP25 nos dois perfis do repositório | BIOS 1.0, DSDT modificada para brilho e repouso | SSDTs geradas a partir do dump do próprio ASUS |
 | Disco | Windows no Micron 2550. Tahoe no segundo NVMe de 512 GB | Samsung 970 EVO para macOS, outro NVMe para Fedora | Redimensionou a partição do Windows e instalou o Tahoe em uma partição do mesmo NVMe |
 | Perfil Mac | `MacBookPro16,1` | `MacBookPro16,1`, Tahoe 26.7.3 (25G342) | `MacBookPro16,2`, Tahoe 26.7.3 ao final |
 
@@ -26,6 +26,17 @@ no WhateverXe envolvia um HP OMEN com iGPU A788, outro painel e outro par de
 versões do driver. O primeiro teste da UHD no nosso Dell ainda é decisivo.
 [Hardware e gráficos de Rodrigo Rangel](../README.md#what-works) ·
 [Relato do HP OMEN](https://github.com/b00t0x/WhateverXe/issues/51)
+
+### Escolha do SMBIOS
+
+A Apple lista Tahoe 26 para os modelos `MacBookPro16,1` (16 polegadas, 2019)
+e `MacBookPro16,2` (13 polegadas, 2020, quatro portas Thunderbolt 3). O
+`16,1` já abriu a Recuperação no nosso Dell e é a chave de máquina usada pelo
+perfil de energia da UHD no [G15AGPMIgpu](../EFI/OC/Kexts/G15AGPMIgpu.kext/Contents/Info.plist).
+O `16,2` passou no `ocvalidate` em cópias dos dois perfis. Para adotá-lo,
+comparar o boot, Metal, brilho e consumo da UHD no Dell com identidade
+coerente para o novo modelo. Ele segue como opção para um teste separado.
+[Modelos de MacBook Pro](https://support.apple.com/en-us/108052)
 
 ## Etapas e critérios de conclusão
 
@@ -96,11 +107,11 @@ vezes. [Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
 
 ### 3. Perfil de sistema e boot independente pelo SSD
 
-1. Levar para o perfil de sistema os ajustes comprovados no Dell. O
-   `config.plist` do repositório e o `config-system.plist` do pendrive
-   ainda carecem do patch RP25. Em uma cópia temporária com RP25, o
-   `ocvalidate 1.0.8` passou e o AcpiExec 20160930 carregou 24 tabelas e
-   resolveu, entre outros, RP25, PNLF e os métodos GOFF e GONN.
+1. O `config.plist` do repositório já inclui o patch RP25 da BIOS 1.37.0.
+   O `ocvalidate 1.0.8` passou, e a simulação dessa composição com AcpiExec
+   20160930 carregou 24 tabelas e resolveu RP25, PNLF e os métodos GOFF e GONN.
+   O `config-system.plist` do pendrive ainda é a cópia anterior. Ele será
+   atualizado para o teste do perfil de sistema.
 2. Validar o perfil de sistema pelo USB com o mesmo SMBIOS e o sistema
    instalado. Conferir primeiro tela interna, entrada e boot repetível.
    Os ajustes de repouso S0, GPIO da tampa/touchpad e corte de energia da
