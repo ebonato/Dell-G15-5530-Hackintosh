@@ -6,9 +6,10 @@ touchpad, USB e repouso validados no Dell. A RTX 3050 e o HDMI têm uma etapa
 própria de ativação e teste.
 
 **Estado em 21/11/2026:** o pendrive já abriu a Recuperação gráfica, o Wi-Fi
-funcionou e o instalador preparou o NVMe para a etapa seguinte. Falta chegar
-ao Assistente de Configuração e ao desktop. O perfil de sistema também
-precisa de uma validação própria antes de ir para a EFI do SSD.
+funcionou e o instalador preparou o NVMe para a etapa seguinte. O boot voltou a travar com e sem o driver APFS do OpenCore. O instalador foi
+reconstruído com o dump ACPI do Dell. O levantamento de portas USB no Windows
+começou e ainda falta verificar os conectores físicos. Depois, validar a
+Recuperação e fazer uma instalação limpa no NVMe dedicado.
 
 ## As três máquinas
 
@@ -66,7 +67,13 @@ coerente para o novo modelo. Ele segue como opção para um teste separado.
 - **Em paralelo no Windows:** mapear USB 2 e USB 3 em cada porta externa
   usada, incluindo USB-C, e identificar Bluetooth e webcam internos. O
   instalador já chegou à interface com `USBToolBox + UTBDefault` na porta
-  lógica `XHCI.RHUB.SS03`. O mapa próprio `UTBMap.kext` deve substituir
+  lógica `XHCI.RHUB.SS03`. O USBToolBox 0.2 encontrou o controlador
+  `8086:7A60` em `00:14.0` com 25 portas lógicas. Os descritores do Windows
+  sinalizaram todas como conectáveis, inclusive as que pertencem a
+  periféricos internos. A webcam integrada foi identificada no índice 3
+  (HS03) e o Bluetooth Intel no índice 14 (HS14). Os conectores externos
+  ainda precisam ser associados às portas lógicas com dispositivos reais.
+  O mapa próprio `UTBMap.kext` deve substituir
   `UTBDefault.kext` após teste, mantendo `USBToolBox.kext`.
   [Fluxo do USBToolBox](https://github.com/USBToolBox/kext#usage)
 
@@ -86,14 +93,17 @@ USB definitivo e repetibilidade seguem pendentes.
 - O primeiro reinício já ocorreu. O log confirmou a carga de
   `com.apple.installer/boot.efi` no NVMe, e a tela parou na configuração PCI.
   Mais tarde, a Recuperação USB também parou durante a inicialização. A
-  opção `EnableJumpstart=false` no pendrive é o teste em aberto para
-  a Recuperação USB. Para o OpenCore carregar novamente a etapa APFS do
-  NVMe, restaurar `EnableJumpstart=true`. O último log disponível,
-  `opencore-2026-11-21-123517.txt`, é anterior a esse teste. O relógio variou
-  entre os boots. Usar também o conteúdo do log para ordenar as tentativas.
+  tentativa com `EnableJumpstart=false` usou a Recuperação USB e registrou
+  `EXITBS:START` no log `opencore-2026-11-21-164308.txt`. A foto mostra
+  o kernel parando durante a listagem das tabelas ACPI mesmo sem carregar
+  o driver APFS do SSD. O log `195200` corresponde ao Windows. O novo
+  perfil de instalação mantém `EnableJumpstart=true` para poder continuar
+  pela etapa APFS após o primeiro reinício.
 - O [registro ACPI](../acpi-native/README.md#patches-do-ssdttime-avaliados-na-bios-1370)
   descreve FakeEC, USBX, PluginType, RTCAWAC, PNLF, XOSI, HPET, DMAR, SMBus e
-  ALS0. FixHPET foi gerado e validado em simulação com RP25.
+  ALS0. O instalador reconstruído usa FakeEC Laptop, USBX, RTCAWAC,
+  HPET e SMBus gerados a partir do dump local, além de PluginType e RP25
+  verificados contra a BIOS 1.37.0. A simulação carregou as 21 tabelas.
   `SetupVirtualMap` está em `false` no Dell e é outro candidato que a live
   motivou para teste isolado. No ASUS ele resolveu uma falha anterior ao
   ponto mostrado no Dell. `ResizeAppleGpuBars` está em `-1` no Dell. O
@@ -103,7 +113,11 @@ USB definitivo e repetibilidade seguem pendentes.
 **Concluída quando:** o Assistente de Configuração termina, surge o desktop e
 o volume instalado volta a iniciar pelo USB. A porcentagem e os minutos
 estimados são indicadores de progresso. O instalador pode reiniciar várias
-vezes. [Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
+vezes. Para uma tentativa limpa, primeiro confirmar que a EFI reconstruída
+abre a Recuperação e que entrada, USB, rede e NVMe funcionam. Só então
+recriar o destino APFS no NVMe dedicado conforme o layout desejado. O
+Windows está no Micron 2550, com EFI própria.
+[Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
 
 ### 3. Perfil de sistema e boot independente pelo SSD
 

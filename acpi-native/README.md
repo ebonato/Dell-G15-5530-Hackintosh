@@ -268,3 +268,23 @@ O Fix DMAR detectou uma região reservada para a iGPU (`00:02.0`). O
 instalador usa `DisableIoMapper=true`, que desativa o IOMapper no macOS.
 SMBus gerou uma extensão para o `SBUS` nativo em `00:1f.4`, e ALS0 gerou
 um sensor de luz virtual.
+
+### Perfil de instalação reconstruído com o dump local
+
+O [perfil de instalação](../EFI/OC/config-install.plist) carrega FakeEC
+Laptop, USBX, RTCAWAC, HPET e SMBus gerados pelo SSDTTime com iASL 20251212
+a partir da BIOS 1.37.0 deste Dell. Os cinco pares DSL/AML ficam em
+`acpi-src` e `EFI/OC/ACPI`. A geração local de PluginType produziu o
+mesmo corpo AML da PLUG-ALT existente. O USBX local usa os valores padrão
+do SSDTTime. A personalização PS/2 do atalho Fn+F10 fica no perfil de
+sistema.
+
+A simulação com AcpiExec 20160930 carregou as 21 tabelas no modo padrão
+e com `-em`. As seis regras da DSDT, incluindo RP25 e as cinco do HPET,
+encontraram uma ocorrência cada, com assinatura, OEM Table ID e tamanho
+do dump local. O `ocvalidate` 1.0.8 aceitou o perfil reconstruído.
+
+O SSDTTime também gerou candidatos locais PNLF, XOSI, DMAR sem a região
+reservada e ALS0. PNLF, XOSI e ALS0 tratam de funções que podem ser
+avaliadas após a instalação. Para DMAR, o perfil continua usando
+`DisableIoMapper=true`.
