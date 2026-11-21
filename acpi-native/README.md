@@ -187,3 +187,19 @@ Consulte a seção ACPI da [referência do OpenCore 1.0.8](https://github.com/ac
 O `ocvalidate` 1.0.8 validou os dois plist no repositório e no pendrive. A
 cópia aplicou as duas entradas ACPI e preservou o SMBIOS e os nomes dos perfis
 dos passos 2 e 3. O primeiro boot ainda precisa validar a execução no Dell.
+
+## Boot da Recuperação com a DSDT nativa
+
+O primeiro boot pela entrada `TAHOE (External) (dmg)` abriu a Recuperação e
+chegou à inicialização ACPI do macOS. A foto mostra `AE_NOT_FOUND` para campos
+presentes no dump 1.37.0, incluindo `STAS` e `PXDC` na região `GNVS` e
+`BMID` na região `DSMP`. O log do OpenCore confirma a DSDT nativa e a
+exclusão de `xh_Dell_` naquele teste.
+
+No AcpiExec 20250807, a DSDT nativa isolada acusa `AE_NOT_FOUND` ao
+resolver `\_SB.PC00.RP25`, mas a carga continua e publica `STAS`. O
+dispositivo `RP25` está sob uma condição na DSDT nativa e há um escopo
+posterior que o referencia. A DSDT do autor carrega `RP25` no mesmo teste e
+usa outros endereços para `GNVS`, `PNVA` e `DSMP`. A primeira falha no
+interpretador do macOS ainda precisa ser capturada. O perfil de instalação
+habilita `AppleDebug` e `ApplePanic` para o próximo teste.
