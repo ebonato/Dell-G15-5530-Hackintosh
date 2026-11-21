@@ -6,10 +6,11 @@ touchpad, USB e repouso validados no Dell. A RTX 3050 e o HDMI têm uma etapa
 própria de ativação e teste.
 
 **Estado em 21/11/2026:** o pendrive já abriu a Recuperação gráfica, o Wi-Fi
-funcionou e o instalador preparou o NVMe para a etapa seguinte. O boot voltou a travar com e sem o driver APFS do OpenCore. O instalador foi
-reconstruído com o dump ACPI do Dell. O levantamento de portas USB no Windows
-começou e ainda falta verificar os conectores físicos. Depois, validar a
-Recuperação e fazer uma instalação limpa no NVMe dedicado.
+funcionou e o instalador preparou o NVMe para a etapa seguinte. O boot
+voltou a travar com e sem o driver APFS do OpenCore. O pendrive foi
+atualizado com o ACPI local e o mapa das três USB-A, do hub USB-C
+traseiro e dos dispositivos internos. O próximo boot verifica a Recuperação e o acesso ao NVMe
+antes da instalação limpa.
 
 ## As três máquinas
 
@@ -64,23 +65,43 @@ coerente para o novo modelo. Ele segue como opção para um teste separado.
   Cada cópia local usa o mesmo SMBIOS gerado pelo
   [GenSMBIOS](../tools/GenSMBIOS/README.md), com os quatro identificadores
   privados fora do Git.
-- **Em paralelo no Windows:** mapear USB 2 e USB 3 em cada porta externa
-  usada, incluindo USB-C, e identificar Bluetooth e webcam internos. O
-  instalador já chegou à interface com `USBToolBox + UTBDefault` na porta
-  lógica `XHCI.RHUB.SS03`. O USBToolBox 0.2 encontrou o controlador
-  `8086:7A60` em `00:14.0` com 25 portas lógicas. Os descritores do Windows
-  sinalizaram todas como conectáveis, inclusive as que pertencem a
-  periféricos internos. A webcam integrada foi identificada no índice 3
-  (HS03) e o Bluetooth Intel no índice 14 (HS14). Os conectores externos
-  ainda precisam ser associados às portas lógicas com dispositivos reais.
-  O mapa próprio `UTBMap.kext` deve substituir
-  `UTBDefault.kext` após teste, mantendo `USBToolBox.kext`.
+- O USBToolBox 0.2 e o inventário PnP do Windows confirmaram um único
+  controlador PCI, Intel xHCI `8086:7A60` em `00:14.0`. O mapa de
+  instalação foi gerado com dez portas observadas. As três USB-A foram
+  confirmadas com o mouse em USB 2.0 e com armazenamento em USB 3.0.
+
+  | Conector | Índice USB 2.0 | Índice USB 3.0 |
+  | --- | ---: | ---: |
+  | USB-A traseira | 8 | 17 |
+  | USB-A direita, usada pelo pendrive de Recuperação | 9 | 19 |
+  | USB-A direita, ao lado do pendrive | 10 | 20 |
+  | USB-C traseiro, hub com teclado | 11 | 23 |
+  | Webcam interna | 3 | — |
+  | Bluetooth Intel interno | 14 | — |
+
+  O perfil de instalação carrega `USBToolBox.kext` com
+  `UTBMap.kext`. No USB-C traseiro, foram observados os dois lados do hub
+  na orientação atual e o teclado Corsair no lado USB 2.0. O firmware
+  declara USB-C tipo 9. A outra orientação segue pendente.
   [Fluxo do USBToolBox](https://github.com/USBToolBox/kext#usage)
 
 **Concluída para instalação:** F12 abre o OpenCore, o volume
 `TAHOE (external) (dmg)` abre a interface, o NVMe é visível e existe
-conexão com a Apple. A interface e o Wi-Fi já funcionaram uma vez. Mapa
-USB definitivo e repetibilidade seguem pendentes.
+conexão com a Apple. A interface e o Wi-Fi já funcionaram uma vez. A
+repetibilidade do boot e o teste do hub no macOS seguem pendentes.
+
+### Roteamento de vídeo observado no Windows
+
+| Tela | Saída vista pelo Windows | GPU que dirige a tela |
+| --- | --- | --- |
+| Painel interno | eDP | NVIDIA RTX 3050 `10DE:25EC` na sessão observada |
+| Samsung Odyssey G5 | HDMI direto do notebook | NVIDIA RTX 3050 `10DE:25EC` |
+| 27G2E1 | DisplayPort pelo USB-C traseiro, convertido para HDMI pelo hub | Intel UHD `8086:A78B` |
+
+Os caminhos são da sessão do Windows. Conferir a seleção de Hybrid/Optimus
+e observar também o monitor pelo USB-C no teste de Recuperação. O hub USB
+transporta o teclado separadamente do vídeo DisplayPort.
+[Tipos de saída do Windows](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ne-wingdi-displayconfig_video_output_technology)
 
 ### 2. Instalação até o primeiro desktop
 
@@ -97,8 +118,9 @@ USB definitivo e repetibilidade seguem pendentes.
   `EXITBS:START` no log `opencore-2026-11-21-164308.txt`. A foto mostra
   o kernel parando durante a listagem das tabelas ACPI mesmo sem carregar
   o driver APFS do SSD. O log `195200` corresponde ao Windows. O novo
-  perfil de instalação mantém `EnableJumpstart=true` para poder continuar
-  pela etapa APFS após o primeiro reinício.
+  perfil ativo no pendrive voltou a usar `EnableJumpstart=true` para poder
+  continuar pela etapa APFS após o primeiro reinício. O `ocvalidate 1.0.8`
+  aceitou o perfil ativo e o DMG e a chunklist mantêm os hashes originais.
 - O [registro ACPI](../acpi-native/README.md#patches-do-ssdttime-avaliados-na-bios-1370)
   descreve FakeEC, USBX, PluginType, RTCAWAC, PNLF, XOSI, HPET, DMAR, SMBus e
   ALS0. O instalador reconstruído usa FakeEC Laptop, USBX, RTCAWAC,
