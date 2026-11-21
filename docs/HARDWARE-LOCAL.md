@@ -91,11 +91,19 @@ confirmado, preservando a função distinta de cada perfil.
   macOS ainda é necessário.
 - O pendrive conectado foi detectado no Windows na porta lógica SuperSpeed
   `\_SB.PC00.XHCI.RHUB.SS03`. Essa é uma porta conhecida para o teste inicial.
-- O perfil de instalação ainda precisa da adaptação para DSDT nativa, revisão dos
-  SSDTs e da identificação SMBIOS local. A primeira inicialização também serve
-  para testar a porta USB usada pelo instalador e a rede. Os dados atuais bastam
-  para iniciar a preparação da EFI. Um mapa USB completo fica para validação
-  caso alguma porta falhe ou para o ajuste posterior do sistema.
+- O pendrive `TAHOE` tem uma partição FAT32 de 8 GB. Os arquivos de recuperação
+  ficam em `com.apple.recovery.boot` e foram conferidos por SHA-256 após a cópia.
+- No pendrive, `EFI/OC/config.plist` é o perfil do instalador e
+  `EFI/OC/config-system.plist` guarda o perfil para uso após a instalação.
+  Os dois usam o mesmo SMBIOS local `MacBookPro16,1` e passaram no ocvalidate 1.0.8.
+  Os identificadores foram aplicados somente à cópia local da EFI, fora do Git.
+- O [GenSMBIOS](../tools/GenSMBIOS/README.md) está em `tools/GenSMBIOS`, na revisão
+  `9a446983ec0c6b0fb690dc1cae76c314756a43ee`. Para esta geração foi usado o
+  macserial do OpenCorePkg 1.0.8. O executável local fica fora do Git.
+- O passo 4 ainda precisa tratar a DSDT da BIOS do autor e revisar seus SSDTs.
+  Depois desse passo, o primeiro boot serve para testar a porta USB e a rede.
+  Um mapa USB completo fica para validação se alguma porta falhar ou no ajuste
+  posterior do sistema.
 - O Secure Boot UEFI estava ligado na leitura após a atualização. Mantê-lo até
   o primeiro teste pelo F12. Os binários de boot da EFI atual não têm assinatura
   incorporada. Antes de desligar, conferir o estado atual do BitLocker ou da
