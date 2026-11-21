@@ -8,9 +8,9 @@
 		<array>
 			<dict>
 				<key>Comment</key>
-				<string>DSDT.aml</string>
+				<string>Disabled - use native Dell BIOS 1.37.0 DSDT</string>
 				<key>Enabled</key>
-				<true/>
+				<false/>
 				<key>Path</key>
 				<string>DSDT.aml</string>
 			</dict>
@@ -40,9 +40,9 @@
 			</dict>
 			<dict>
 				<key>Comment</key>
-				<string>SSDT-XOSI.aml</string>
+				<string>Disabled - native DSDT uses _OSI</string>
 				<key>Enabled</key>
-				<true/>
+				<false/>
 				<key>Path</key>
 				<string>SSDT-XOSI.aml</string>
 			</dict>

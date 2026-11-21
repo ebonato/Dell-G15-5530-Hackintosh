@@ -160,3 +160,30 @@ métodos AML coletados. Isso permite reaproveitar a análise das dependências d
 1.35.0 para preparar a EFI da 1.37.0. A comparação cobre o conteúdo do dump e
 não testa a execução dos métodos nem o comportamento do firmware.
 [Especificação ACPI 6.6](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html)
+
+## Passo 4 aplicado à EFI local
+
+Os dois perfis usam a DSDT nativa da BIOS 1.37.0. Em `ACPI > Add`, `DSDT.aml`
+e `SSDT-XOSI.aml` ficam desativados. O OpenCore só substitui a DSDT do firmware
+quando carrega uma tabela com assinatura `DSDT`. O `XOSI` do autor atendia às
+chamadas renomeadas na DSDT que ele distribuía. As teclas Fn de brilho ficam
+para teste no sistema. A definição condicional de `_S3` permanece a do firmware.
+Consulte a seção ACPI da [referência do OpenCore 1.0.8](https://github.com/acidanthera/OpenCorePkg/blob/1.0.8/Docs/Configuration.pdf).
+
+- `SSDT-AWAC`, `SSDT-EC-USBX`, `SSDT-PLUG-ALT` e `SSDT-PS2K-RMCF` seguem
+  ativos no instalador e no sistema. A conferência estática localizou `STAS`
+  e o RTC legado, `LPCB.ECDV`, `LPCB.PS2K` e os 20 IDs de CPU ativos (0 a 19).
+- A exclusão de `xh_Dell_` em `ACPI > Delete` segue a base do instalador do
+  autor. O dump atual identifica essa tabela como `SSDT11.aml`. O efeito sobre
+  as portas USB deve ser conferido no primeiro boot com a DSDT nativa. A saída
+  da descompilação conjunta não demonstra, por si só, um conflito em execução.
+- `PNLF`, `DeepIdle`, `LIDWAKE`, `RTXKEXT` e `BTRK` seguem exclusivos do
+  perfil pós-instalação. A revisão encontrou `GFX0`, `LID0`, `AMWW`, `BTRK` e
+  `GBTR` na 1.37.0. O recurso `PG01` aparece num bloco condicional de `NvdTable`
+  (`SSDT10.aml`). A presença desses nomes não comprova os efeitos no macOS.
+  Brilho, repouso, Bluetooth e corte de energia da RTX 3050 exigem testes
+  específicos antes de usar o perfil pós-instalação no dia a dia.
+
+O `ocvalidate` 1.0.8 validou os dois plist no repositório e no pendrive. A
+cópia aplicou as duas entradas ACPI e preservou o SMBIOS e os nomes dos perfis
+dos passos 2 e 3. O primeiro boot ainda precisa validar a execução no Dell.

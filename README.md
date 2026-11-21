@@ -3,10 +3,9 @@
 Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
 10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
 
-**Estado: BIOS 1.37.0 confirmada no Windows e recuperação do Tahoe baixada.**
-A comparação ACPI encontrou diferenças apenas em BGRT e PHAT. Os perfis da EFI
-ainda são a referência do autor para i5/RTX 4050. A EFI para o primeiro teste
-será preparada para a DSDT nativa e o hardware deste i7.
+**Estado: BIOS 1.37.0 confirmada e pendrive pronto para o primeiro teste.**
+A recuperação do Tahoe e os perfis com SMBIOS local e DSDT nativa estão no
+pendrive TAHOE. O primeiro teste validará o boot até a Recuperação.
 
 Consulte [o estado da preparação](docs/HARDWARE-LOCAL.md) e
 [a comparação dos dumps ACPI](acpi-native/README.md).

@@ -69,11 +69,10 @@ As permissões futuras serão ajustadas em função da cadeia de drivers e pacot
 efetivamente escolhida. Não foi aplicada uma política genérica de segurança ao
 custo de remover o funcionamento pretendido pelo projeto.
 
-**Start não significa EFI pronta para boot neste i7.** Os perfis restaurados ainda
-carregam a DSDT modificada do autor e recursos do i5/RTX 4050. Mantê-los como base
-comparável evita misturar ajustes não testados com o processo de atualização da
-BIOS. O próximo trabalho será adaptar essa base ao firmware final e ao hardware
-confirmado, preservando a função distinta de cada perfil.
+**O perfil de instalação já usa a DSDT nativa no repositório.** A primeira
+inicialização ainda precisa validar a compatibilidade neste i7. O perfil
+pós-instalação conserva os recursos do autor, incluindo as extensões de GPU
+e energia que precisam de testes próprios com a RTX 3050.
 
 ## Preparação do instalador Tahoe
 
@@ -100,10 +99,11 @@ confirmado, preservando a função distinta de cada perfil.
 - O [GenSMBIOS](../tools/GenSMBIOS/README.md) está em `tools/GenSMBIOS`, na revisão
   `9a446983ec0c6b0fb690dc1cae76c314756a43ee`. Para esta geração foi usado o
   macserial do OpenCorePkg 1.0.8. O executável local fica fora do Git.
-- O passo 4 ainda precisa tratar a DSDT da BIOS do autor e revisar seus SSDTs.
-  Depois desse passo, o primeiro boot serve para testar a porta USB e a rede.
-  Um mapa USB completo fica para validação se alguma porta falhar ou no ajuste
-  posterior do sistema.
+- O passo 4 foi aplicado no repositório e no pendrive. Os dois perfis usam a
+  DSDT nativa da BIOS 1.37.0 com `SSDT-XOSI` desativado. O SMBIOS dos passos
+  2 e 3 foi preservado. Ambos os perfis no pendrive passaram no ocvalidate
+  1.0.8. A primeira inicialização serve para testar USB e rede na Recuperação.
+  O arquivo `CONTINUAR-NO-MAC.txt` no pendrive registra o ponto de retomada.
 - O Secure Boot UEFI estava ligado na leitura após a atualização. Mantê-lo até
   o primeiro teste pelo F12. Os binários de boot da EFI atual não têm assinatura
   incorporada. Antes de desligar, conferir o estado atual do BitLocker ou da
