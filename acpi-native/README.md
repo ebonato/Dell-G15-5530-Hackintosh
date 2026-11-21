@@ -48,19 +48,19 @@ indica que a outra coleta não contém um arquivo com o mesmo hash.
 DSDT nativa de ambas as coletas: 653.360 bytes, SHA-256
 `71A1652BE0EDE98C96887FA1ED79A2B0E8C0450D2F5221133F2F1ADC5A12DC22`.
 
-## Comparação inicial com o material do autor
+## Comparação inicial com o material de Rodrigo Rangel
 
 A DSDT distribuída em `EFI/OC/ACPI/DSDT.aml` é diferente da nativa:
 520.568 bytes, SHA-256
 `7019D13829DEB2E47CDD191340AFE1A6B262DE669ADE1EE43809B7DA239E445A`.
 
-Na descompilação isolada com iASL 20250807, a tabela do autor contém 19 chamadas
-a `XOSI` e nenhuma a `_OSI`; a nativa tem 19 chamadas a `_OSI` e nenhuma a `XOSI`.
-A nativa contém `Name (_S3, ...)`; essa definição não está na tabela do autor.
+Na descompilação isolada com iASL 20250807, a tabela de Rodrigo Rangel contém
+19 chamadas a `XOSI` e nenhuma a `_OSI`; a nativa tem 19 chamadas a `_OSI` e nenhuma a `XOSI`.
+A nativa contém `Name (_S3, ...)`; essa definição não está na tabela de Rodrigo Rangel.
 Isso comprova modificações relevantes além da diferença de tamanho e hardware.
 
 Em ambas, o trecho examinado de `\_SB.PC00.LPCB.ECDV._STA` retorna `0x0F`.
-O comentário no fonte EC/USBX do autor sobre esconder esse EC não descreve esse
+O comentário no fonte EC/USBX de Rodrigo Rangel sobre esconder esse EC não descreve esse
 trecho do AML distribuído. Não deve ser usado isoladamente para justificar patches.
 
 Limite: isso é uma comparação inicial, não uma portabilidade concluída. A análise
@@ -70,7 +70,7 @@ As referências externas e os caminhos condicionais precisam de avaliação pró
 esse resultado do descompilador não prova defeito em execução nem justifica, por si
 só, excluir uma tabela ou criar um patch. Nenhum AML foi gerado dessa análise para a EFI.
 
-## O que a EFI do autor carrega
+## O que a EFI de Rodrigo Rangel carrega
 
 A listagem abaixo vem das entradas habilitadas em `ACPI > Add` nos dois plist do
 commit-base `4cb55f4`. O OpenCore substitui a DSDT do firmware ao carregar uma
@@ -80,13 +80,13 @@ objetos definidos na DSDT ou em outros SSDTs. Consulte a seção *ACPI / Add* da
 
 | Tabela ativa | Instalador | Sistema | Função e o que conferir após a atualização |
 | --- | :---: | :---: | --- |
-| `DSDT.aml` | Sim | Sim | DSDT completa e modificada do autor. Definir se os ajustes necessários podem ser aplicados à tabela nativa durante o boot. Se houver motivo para uma substituição completa, usar a DSDT da BIOS instalada como base. |
+| `DSDT.aml` | Sim | Sim | DSDT completa e modificada de Rodrigo Rangel. Definir se os ajustes necessários podem ser aplicados à tabela nativa durante o boot. Se houver motivo para uma substituição completa, usar a DSDT da BIOS instalada como base. |
 | `SSDT-AWAC.aml` | Sim | Sim | Ajusta `STAS` para usar o RTC legado. Conferir `STAS`, a lógica do AWAC e o RTC do firmware. |
 | `SSDT-EC-USBX.aml` | Sim | Sim | Injeta um dispositivo `EC` e propriedades de alimentação USB. Conferir o caminho de `LPCB`, o EC real e colisões com `EC` ou `USBX`. |
 | `SSDT-PLUG-ALT.aml` | Sim | Sim | Adiciona objetos `Processor` e `plugin-type`. Conferir os IDs e os objetos de CPU com a topologia do i7 e as tabelas da BIOS instalada. |
-| `SSDT-XOSI.aml` | Sim | Sim | Define `XOSI`, usado pelas chamadas renomeadas na DSDT do autor. Avaliar o caminho das teclas de brilho junto com o eventual redirecionamento das chamadas necessárias. |
+| `SSDT-XOSI.aml` | Sim | Sim | Define `XOSI`, usado pelas chamadas renomeadas na DSDT de Rodrigo Rangel. Avaliar o caminho das teclas de brilho junto com o eventual redirecionamento das chamadas necessárias. |
 | `SSDT-PS2K-RMCF.aml` | Sim | Sim | Configura o VoodooPS2 para mapear `PrtSc` a F13. Conferir `LPCB.PS2K` e um eventual `RMCF` já existente. |
-| `SSDT-DeepIdle.aml` | — | Sim | Adiciona `LPS0` e `LXEN` para repouso S0. Conferir se os nomes já existem e testar suspensão em conjunto com os drivers do autor. |
+| `SSDT-DeepIdle.aml` | — | Sim | Adiciona `LPS0` e `LXEN` para repouso S0. Conferir se os nomes já existem e testar suspensão em conjunto com os drivers de Rodrigo Rangel. |
 | `SSDT-RTXKEXT.aml` | — | Sim | Expõe métodos usados pelo G15Fan para controlar energia da GPU. `PG01` aparece no SSDT OEM `NvdTable` da 1.35.0, em um bloco condicional. Conferir esse caminho, `AMWW`, os métodos de energia e o comportamento real da RTX 3050. |
 | `SSDT-PNLF.aml` | — | Sim | Cria o dispositivo de brilho sob `\_SB.PC00.GFX0`. Conferir o caminho do vídeo integrado e o brilho do painel com o driver gráfico escolhido. |
 | `SSDT-LIDWAKE.aml` | — | Sim | Adiciona `PRW0` em `\_SB.LID0` com GPE `0x6E`. Conferir tampa, roteamento do evento e despertar real. |
@@ -122,9 +122,9 @@ O dump nativo já traz a DSDT em AML. O iASL consegue descompilá-la para DSL, c
 as demais tabelas como apoio para resolver referências. Esse DSL reconstruído
 serve para comparar caminhos e métodos mesmo sem os fontes originais da Dell.
 Antes de usá-lo para gerar um AML de boot, seria preciso resolver as referências
-e conferir a recompilação. A comparação com a DSDT modificada do autor confirma
+e conferir a recompilação. A comparação com a DSDT modificada de Rodrigo Rangel confirma
 as diferenças em `_OSI`/`XOSI` e na definição de `_S3`. Para atribuir todas as
-outras diferenças ao autor seria necessário também um dump original da BIOS 1.0.
+outras diferenças a Rodrigo Rangel, seria necessário também um dump original da BIOS 1.0.
 
 Na 1.35.0, `_S3` está dentro de `If (SS3)`, `SS3` é inicializado com `Zero` no
 DSL e a FADT anuncia baixo consumo em S0 (`LOW_POWER_S0_IDLE_CAPABLE`). Isso pede
@@ -150,10 +150,16 @@ Os 32 arquivos passam nas verificações de tamanho e checksum ACPI. Por SHA-256
 O [manifesto da 1.37.0](manifest-1.37.0.json) liga cada arquivo à tabela anterior
 e registra se o conteúdo mudou.
 
-| Tabela | Diferença decodificada com iASL 20250807 |
+| Tabela | Diferença entre as coletas 1.35.0 e 1.37.0 |
 | --- | --- |
-| `BGRT.aml` | `Image Address` passou de `0x575BC018` para `0x575BB018`. É o endereço em memória da imagem de boot. Tipo, status, orientação e coordenadas permaneceram iguais. O checksum mudou de `0x3E` para `0x4E`. |
+| `BGRT.aml` | `Image Address` foi `0x575BC018` na 1.35.0, `0x575BB018` na primeira coleta 1.37.0 e `0x56AF9018` na nova coleta 1.37.0. Os checksums foram `0x3E`, `0x4E` e `0x1B`, respectivamente. Tipo, status, orientação e coordenadas permaneceram iguais. |
 | `PHAT.aml` | O campo de versão do registro com GUID `03285589-1E37-4B72-A5F9-70D1ADAE5D34`, produtor `INTC`, passou de `0x0000000117000000` para `0x0000000119000000`. O checksum mudou de `0xB6` para `0xB4`. O GUID não identifica por si só o componente por nome. |
+
+A nova coleta na mesma BIOS 1.37.0 usou `acpidump` 20251212. O iASL 20251212
+confirmou que só mudaram o endereço físico do bitmap de boot e o checksum da
+BGRT. A especificação define a BGRT como uma tabela dinâmica. Os outros 31
+arquivos, incluindo DSDT, todos os SSDTs e PHAT, têm o mesmo SHA-256 nas duas
+coletas da 1.37.0. O manifesto registra o hash da captura mais recente.
 
 Essas duas alterações estão em tabelas de dados. Não apareceu mudança nos
 métodos AML coletados. Isso permite reaproveitar a análise das dependências da
@@ -165,7 +171,7 @@ não testa a execução dos métodos nem o comportamento do firmware.
 
 Os dois perfis usam a DSDT nativa da BIOS 1.37.0. Em `ACPI > Add`, `DSDT.aml`
 e `SSDT-XOSI.aml` ficam desativados. O OpenCore só substitui a DSDT do firmware
-quando carrega uma tabela com assinatura `DSDT`. O `XOSI` do autor atendia às
+quando carrega uma tabela com assinatura `DSDT`. O `XOSI` de Rodrigo Rangel atendia às
 chamadas renomeadas na DSDT que ele distribuía. As teclas Fn de brilho ficam
 para teste no sistema. A definição condicional de `_S3` permanece a do firmware.
 Consulte a seção ACPI da [referência do OpenCore 1.0.8](https://github.com/acidanthera/OpenCorePkg/blob/1.0.8/Docs/Configuration.pdf).
@@ -173,9 +179,9 @@ Consulte a seção ACPI da [referência do OpenCore 1.0.8](https://github.com/ac
 - `SSDT-AWAC`, `SSDT-EC-USBX`, `SSDT-PLUG-ALT` e `SSDT-PS2K-RMCF` seguem
   ativos no instalador e no sistema. A conferência estática localizou `STAS`
   e o RTC legado, `LPCB.ECDV`, `LPCB.PS2K` e os 20 IDs de CPU ativos (0 a 19).
-- A exclusão de `xh_Dell_` em `ACPI > Delete` segue a base do instalador do
-  autor. O dump atual identifica essa tabela como `SSDT11.aml`. O efeito sobre
-  as portas USB deve ser conferido no primeiro boot com a DSDT nativa. A saída
+- A exclusão de `xh_Dell_` em `ACPI > Delete` segue a base do instalador de
+  Rodrigo Rangel. O dump atual identifica essa tabela como `SSDT11.aml`. O efeito
+  sobre as portas USB deve ser conferido no primeiro boot com a DSDT nativa. A saída
   da descompilação conjunta não demonstra, por si só, um conflito em execução.
 - `PNLF`, `DeepIdle`, `LIDWAKE`, `RTXKEXT` e `BTRK` seguem exclusivos do
   perfil pós-instalação. A revisão encontrou `GFX0`, `LID0`, `AMWW`, `BTRK` e
@@ -199,7 +205,7 @@ exclusão de `xh_Dell_` naquele teste.
 No AcpiExec 20250807, a DSDT nativa isolada acusa `AE_NOT_FOUND` ao
 resolver `\_SB.PC00.RP25`, mas a carga continua e publica `STAS`. O
 dispositivo `RP25` está sob uma condição na DSDT nativa e há um escopo
-posterior que o referencia. A DSDT do autor carrega `RP25` no mesmo teste e
+posterior que o referencia. A DSDT de Rodrigo Rangel carrega `RP25` no mesmo teste e
 usa outros endereços para `GNVS`, `PNVA` e `DSMP`. A primeira falha no
 interpretador do macOS ainda precisa ser capturada. O perfil de instalação
 habilita `AppleDebug` e `ApplePanic` para o próximo teste.
@@ -223,5 +229,26 @@ tabela publicada pelo firmware durante o boot.
 Na simulação com a DSDT corrigida e as mesmas SSDTs da tentativa, o
 AcpiExec 20160930 carregou as 19 tabelas AML e localizou `RP25`, `STAS`,
 `PXDC` e `BMID`, tanto no modo padrão quanto com `-em`. O iASL
-descompilou o AML e confirmou a nova posição de `RP25`. O próximo boot
-no Dell precisa confirmar a passagem pela inicialização ACPI.
+descompilou o AML e confirmou a nova posição de `RP25`. Com esse patch,
+um boot do pendrive chegou à interface da Recuperação no Dell.
+
+## Patches do SSDTTime avaliados na BIOS 1.37.0
+
+O perfil de instalação já cobre FakeEC Laptop e USBX com `SSDT-EC-USBX`,
+PluginType com `SSDT-PLUG-ALT` e RTCAWAC com `SSDT-AWAC`. Ao gerar
+RTCAWAC para este dump, o SSDTTime também selecionou `STAS` e preservou
+os recursos do RTC. O `SSDT-PNLF` fica no perfil pós-instalação.
+`SSDT-XOSI` precisa do redirecionamento de chamadas `_OSI` para ter efeito
+e fica desativado com a DSDT nativa.
+
+O FixHPET gerou `SSDT-HPET.aml` e cinco patches para a DSDT. São dois
+renames do HPET (`_STA` e `_CRS`) e três ajustes de IRQ (IPIC 2, RTC 8,
+TIMR 0). Cada busca encontrou uma ocorrência após aplicar o patch RP25.
+Em simulação, o AcpiExec 20160930 carregou as 20 tabelas no modo padrão
+e com `-em` e resolveu RP25, HPET, STAS, PXDC e BMID. O efeito sobre os
+IRQs no boot real segue em aberto.
+
+O Fix DMAR detectou uma região reservada para a iGPU (`00:02.0`). O
+instalador usa `DisableIoMapper=true`, que desativa o IOMapper no macOS.
+SMBus gerou uma extensão para o `SBUS` nativo em `00:1f.4`, e ALS0 gerou
+um sensor de luz virtual.

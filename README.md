@@ -3,16 +3,19 @@
 Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
 10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
 
-**Estado: pendrive ajustado após o primeiro teste na BIOS 1.37.0.**
-O OpenCore abriu o menu, mas o tempo de espera terminou e ele selecionou
-o Windows. O perfil de instalação agora mostra a Recuperação, aguarda uma
-escolha e inclui o driver para o volume HFS+ dentro do DMG da Apple.
+**Estado:** o pendrive já abriu a Recuperação com Wi-Fi na BIOS 1.37.0.
+A instalação foi preparada no NVMe dedicado e falta concluir o boot da
+etapa `macOS Installer`.
 
-Consulte [o estado da preparação](docs/HARDWARE-LOCAL.md) e
-[a comparação dos dumps ACPI](acpi-native/README.md).
+O [roteiro do Dell](docs/HARDWARE-LOCAL.md) compara a live do ASUS com a
+instalação de Rodrigo Rangel e cobre o caminho até o boot pelo SSD, a
+aceleração gráfica e o uso diário. Os dumps e testes ficam no
+[registro ACPI](acpi-native/README.md).
 
-## Referência upstream — equipamento e resultados do autor
+## Referência upstream — equipamento e resultados de Rodrigo Rangel
 
+Rodrigo Rangel mantém o projeto original do Dell G15 5530. No GitHub, usa
+[rodgod-rr](https://github.com/rodgod-rr). No Discord, usa `rush05765`.
 
 This is the working EFI for my Dell G15 5530, with notes on what works, what partly works and what does not.
 **It is a snapshot of my daily-use setup, not a polished guide.** Read the whole page before trying it. Your BIOS,
