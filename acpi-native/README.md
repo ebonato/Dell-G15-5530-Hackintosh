@@ -203,3 +203,25 @@ posterior que o referencia. A DSDT do autor carrega `RP25` no mesmo teste e
 usa outros endereços para `GNVS`, `PNVA` e `DSMP`. A primeira falha no
 interpretador do macOS ainda precisa ser capturada. O perfil de instalação
 habilita `AppleDebug` e `ApplePanic` para o próximo teste.
+
+### Compatibilidade com o interpretador ACPI do macOS
+
+Na tentativa de 21/11/2026, o log registrou `EXITBS:START` e a tela avançou
+até o mesmo ponto da inicialização ACPI, onde ficou por cinco minutos.
+O AcpiExec 20160930, versão indicada na tela, reproduziu a rejeição da
+DSDT nativa por `AE_NOT_FOUND` em `\_SB.PC00.RP25`. O Windows detectou
+esse mesmo caminho ACPI como a porta PCI `8086:7A48`, em `00:1a.0`. A
+DSDT publicada no registro do Windows tem o mesmo SHA-256 do dump 1.37.0.
+
+O perfil de instalação ganhou um patch em `ACPI > Patch`. Ele move só a
+declaração de `\_SB.PC00.RP25` para fora de `If (PCHS == 0x04)` e
+ajusta o tamanho desse bloco. As outras declarações continuam condicionais.
+A regra exige a assinatura `DSDT`, o OEM Table ID `Dell Inc`, o tamanho
+de 653.360 bytes e a sequência exata do AML da 1.37.0. Ela é aplicada à
+tabela publicada pelo firmware durante o boot.
+
+Na simulação com a DSDT corrigida e as mesmas SSDTs da tentativa, o
+AcpiExec 20160930 carregou as 19 tabelas AML e localizou `RP25`, `STAS`,
+`PXDC` e `BMID`, tanto no modo padrão quanto com `-em`. O iASL
+descompilou o AML e confirmou a nova posição de `RP25`. O próximo boot
+no Dell precisa confirmar a passagem pela inicialização ACPI.
