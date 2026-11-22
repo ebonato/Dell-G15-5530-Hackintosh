@@ -318,8 +318,31 @@ static int profileFanBoost(int p) {
 // RTX (NullMoth): estado e temperatura pelo NVAccel (PerformanceStatistics). 0 = desligada/ausente (sem NVAccel),
 // 1 = ociosa, 2 = em uso (utilizacao >= 5%). Sem o driver, a temperatura vem do sensor 0x06 do EC (G15Fan).
 typedef struct { int state, temp, util; } RtxInfo;
+// (22/11, projeto GC6 E3) com o NVRM do fork e nvrmdynpm=2 o proprio RM da NVIDIA decide E executa o GC6 (e o corte
+// pelo G15Fan): "NVRMRtd3" = Yes no PCI da RTX. Entao o G15 nao para mais a RTX por fora (RtxPm/revoke) e so mostra o
+// estado: -1 = sem o RM executando; 0 = ativa; 1 = em GC6 (com energia); 2 = em GC6 com a energia cortada.
+static int rtxRtd3(void) {
+    CFMutableDictionaryRef m = IOServiceMatching("IOPCIDevice");
+    if (!m) return -1;
+    CFDictionarySetValue(m, CFSTR("IOPropertyExistsMatch"), CFSTR("NVRMRtd3"));
+    io_service_t sv = IOServiceGetMatchingService(kIOMainPortDefault, m);
+    if (!sv) return -1;
+    id on = CFBridgingRelease(IORegistryEntryCreateCFProperty(sv, CFSTR("NVRMRtd3"), kCFAllocatorDefault, 0));
+    id g6 = CFBridgingRelease(IORegistryEntryCreateCFProperty(sv, CFSTR("NVRMGC6"), kCFAllocatorDefault, 0));
+    id ct = CFBridgingRelease(IORegistryEntryCreateCFProperty(sv, CFSTR("NVRMRtd3Cut"), kCFAllocatorDefault, 0));
+    IOObjectRelease(sv);
+    if (![on isKindOfClass:NSNumber.class] || ![on boolValue]) return -1;
+    if (![g6 isKindOfClass:NSNumber.class] || ![g6 boolValue]) return 0;
+    return ([ct isKindOfClass:NSNumber.class] && [ct boolValue]) ? 2 : 1;
+}
 static RtxInfo rtxInfo(NSDictionary *st) {
     RtxInfo r = {0, -1, 0};
+    int g6 = rtxRtd3();
+    if (g6 >= 1) {                                 // em GC6: o NVAccel ficou com a ultima leitura; temperatura pelo EC
+        r.state = 2 + g6;                          // 3 = GC6, 4 = GC6 cortada
+        if (st) r.temp = fanTemp(st, @"0x06");
+        return r;
+    }
     // (10/11) RTX parada pelo G15Fan (RtxPm, "imitar o repouso"): o NVAccel continua no registro com a ultima leitura
     // congelada; vale o estado desligado e a temperatura do sensor 0x06 do EC (le a placa mesmo sem energia nela).
     BOOL parked = [st[@"RtxParked"] boolValue];
@@ -337,7 +360,8 @@ static RtxInfo rtxInfo(NSDictionary *st) {
     return r;
 }
 static NSString *rtxStateName(int s) {
-    return s == 2 ? L("em uso", "busy") : s == 1 ? L("ociosa", "idle") : L("desligada", "off");
+    return s == 4 ? L("GC6, sem energia", "GC6, power off") : s == 3 ? L("GC6", "GC6")
+         : s == 2 ? L("em uso", "busy") : s == 1 ? L("ociosa", "idle") : L("desligada", "off");
 }
 
 static NSString *tempsText(NSDictionary *st) {
@@ -574,7 +598,21 @@ static void rtxCallsTick(void) {
     rtxCallsMoved = rtxCallsHave && c != rtxCallsPrev;
     rtxCallsPrev = c;
 }
+// (18/11, projeto GC6) com o NVRM do fork e nvrmdynpm=1, o proprio RM da NVIDIA diz quando a RTX esta ociosa (sem
+// chamadas e com o "pode" do GSP, ~10 s): "NVRMIdle" no PCI da RTX. Se existir, e o criterio; -1 = sem o RM novo.
+static int rtxRmIdle(void) {
+    CFMutableDictionaryRef m = IOServiceMatching("IOPCIDevice");
+    if (!m) return -1;
+    CFDictionarySetValue(m, CFSTR("IOPropertyExistsMatch"), CFSTR("NVRMIdle"));
+    io_service_t sv = IOServiceGetMatchingService(kIOMainPortDefault, m);
+    if (!sv) return -1;
+    id v = CFBridgingRelease(IORegistryEntryCreateCFProperty(sv, CFSTR("NVRMIdle"), kCFAllocatorDefault, 0));
+    IOObjectRelease(sv);
+    return [v isKindOfClass:NSNumber.class] ? ([v boolValue] ? 1 : 0) : -1;
+}
 static BOOL rtxIdleNow(NSDictionary *st) {
+    int rm = rtxRmIdle();
+    if (rm >= 0) return rm == 1;
     if (!rtxRevokeAvail()) return rtxClients() == 0;
     return rtxInfo(st).util < 2 && !(rtxCallsHave && rtxCallsMoved);
 }
@@ -596,6 +634,14 @@ static BOOL rtxSet(BOOL on, const char *why) {
 static void rtxTick(NSDictionary *st, int ac) {    // a cada 5 s
     int mode = rtxMode();
     if (st && ![st[@"RtxParked"] boolValue]) rtxCallsTick();   // quem usa a RTX (painel), em qualquer modo
+    int g6 = rtxRtd3();
+    if (g6 >= 0) {                                 // (22/11) o RM executa: nada de RtxPm/revoke por fora
+        static int lastG6 = -2;
+        rtxIdleTicks = 0;
+        if (st && [st[@"RtxParked"] boolValue]) rtxSet(YES, "o RM da NVIDIA executa o GC6");
+        if (g6 != lastG6) { NSLog(@"RTX: %s (RM da NVIDIA)", g6 == 2 ? "GC6 com a energia cortada" : g6 == 1 ? "GC6" : "ativa"); lastG6 = g6; }
+        return;
+    }
     if (!st || mode == 1 || (mode == 2 && ac < 0) || !st[@"RtxParked"] || [st[@"RtxParked"] boolValue]) { rtxIdleTicks = 0; return; }
     if (rtxRevokeAvail() && ![g15pmGet(@"RtxLazy") boolValue]) NSLog(@"G15PM: RtxLazy %s", g15pmSet(@"RtxLazy", YES) ? "ligado" : "erro");
     if (!rtxIdleNow(st) || rtxExternal()) {
@@ -605,8 +651,17 @@ static void rtxTick(NSDictionary *st, int ac) {    // a cada 5 s
         if (![who isEqualToString:rtxLastWho]) { rtxLastWho = who; NSLog(@"RTX acordada e presa por: %@", who); }
         return;
     }
+    if (rtxRmIdle() >= 0) {                        // (18/11) RM decide: para apos "rtxIdleRM" s (padrao 60) ociosa pelo RM
+        NSInteger rs = [[NSUserDefaults standardUserDefaults] integerForKey:@"rtxIdleRM"];
+        int rmTicks = rs >= 10 ? (int)((rs + 4) / 5) : 12;
+        if (++rtxIdleTicks >= rmTicks) rtxSet(NO, "RM ociosa");
+        return;
+    }
     if (mode == 0) { if (++rtxIdleTicks >= 6) rtxSet(NO, "modo desligada, ociosa 30 s"); return; }
-    if (++rtxIdleTicks >= (ac ? 60 : 6)) rtxSet(NO, ac ? "tomada, ociosa 5 min" : "bateria, ociosa 30 s");
+    // (16/11) preferencia "rtxIdleTomada" (dominio local.g15.app) (segundos, padrao 300) para testar outro tempo na tomada
+    NSInteger acs = [[NSUserDefaults standardUserDefaults] integerForKey:@"rtxIdleTomada"];
+    int acTicks = acs >= 10 ? (int)((acs + 4) / 5) : 60;
+    if (++rtxIdleTicks >= (ac ? acTicks : 6)) rtxSet(NO, ac ? "tomada, ociosa" : "bateria, ociosa 30 s");
 }
 static void rtxPower(int ac) {                     // carregador mudou
     rtxIdleTicks = 0;
@@ -1489,7 +1544,7 @@ static void panelToggle(NSStatusBarButton *b);
     int cpu = st ? fanTemp(st, @"0x01") : -1;
     RtxInfo r = rtxInfo(st);
     NSString *tc = cpu >= 0 ? [NSString stringWithFormat:@"%d°", cpu] : @"--", *tr = r.temp >= 0 ? [NSString stringWithFormat:@"%d°", r.temp] : @"--";
-    NSColor *rc = r.state == 2 ? NSColor.systemGreenColor : r.state == 1 ? NSColor.systemYellowColor : NSColor.systemRedColor;
+    NSColor *rc = r.state >= 3 ? NSColor.systemBlueColor : r.state == 2 ? NSColor.systemGreenColor : r.state == 1 ? NSColor.systemYellowColor : NSColor.systemRedColor;
     NSFont *f = [NSFont monospacedDigitSystemFontOfSize:9 weight:NSFontWeightSemibold];
     NSImage *fan = [NSImage imageWithSystemSymbolName:@"fan" accessibilityDescription:@"G15"];
     const CGFloat iconW = 15, gap = 3, textW = 42, h = 22;
@@ -1587,7 +1642,9 @@ static void panelToggle(NSStatusBarButton *b);
                                                                     trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(rtxMode:)];
             sc.frame = NSMakeRect(52, 3, 236, 24); sc.controlSize = NSControlSizeSmall; sc.font = [NSFont systemFontOfSize:11];
             sc.selectedSegment = rtxMode();
-            sc.toolTip = [st[@"RtxParked"] boolValue] ? L("Agora: desligada", "Now: off") : L("Agora: ligada", "Now: on");
+            { int g6 = rtxRtd3();
+              sc.toolTip = g6 >= 0 ? [NSString stringWithFormat:L("O driver da NVIDIA decide (agora: %@)", "The NVIDIA driver decides (now: %@)"), rtxStateName(g6 >= 1 ? 2 + g6 : 2)]
+                         : [st[@"RtxParked"] boolValue] ? L("Agora: desligada", "Now: off") : L("Agora: ligada", "Now: on"); }
             [v addSubview:lb]; [v addSubview:sc];
             ri.view = v; [menu addItem:ri];
         }
@@ -1658,6 +1715,8 @@ static void rtxSetMode(int m) {
     BOOL parked = [fanState(NO)[@"RtxParked"] boolValue];
     NSLog(@"RTX: modo %d", m);
     if (m == 1 && parked) rtxSet(YES, "modo ligada");
+    else if (m == 0 && !parked && rtxRtd3() >= 0)   // (22/11) o RM executa: ele desliga quando estiver ociosa
+        notify(@"RTX", L("O driver da NVIDIA desliga a RTX (GC6) sozinho quando ela fica ociosa.", "The NVIDIA driver powers the RTX down (GC6) by itself when idle."));
     else if (m == 0 && !parked) {
         if (!rtxIdleNow(fanState(NO)) || rtxExternal())
             notify(@"RTX", L("Em uso (programa ou monitor externo): desliga quando ficar ociosa.", "In use (app or external display): turns off when idle."));
@@ -1880,7 +1939,7 @@ static NSStackView *head(NSString *symbol, NSString *title, NSTextField *value) 
     _rpmT.toolTip = [rr componentsJoinedByString:@" / "];
     double hz = currentRefresh();                  // taxa atual da tela interna
     _hzT.stringValue = hz > 0 ? [NSString stringWithFormat:@"%.0f", hz] : @"--";
-    NSColor *rc = r.state == 2 ? NSColor.systemGreenColor : r.state == 1 ? NSColor.systemYellowColor : NSColor.systemRedColor;
+    NSColor *rc = r.state >= 3 ? NSColor.systemBlueColor : r.state == 2 ? NSColor.systemGreenColor : r.state == 1 ? NSColor.systemYellowColor : NSColor.systemRedColor;
     _rtxDot.layer.backgroundColor = rc.CGColor;
     _rtxCap.stringValue = @"RTX";
 

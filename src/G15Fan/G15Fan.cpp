@@ -34,6 +34,7 @@
 //   na tomada (24-31). Tempo 0 = nunca apaga. Testado no Fedora (stop_timeout 5s apagou a luz em 5 s).
 //   escrita: {"KbdTimeout": segundos (0 = nunca)} nos dois (bateria e tomada); leitura: "KbdTimeout" = {Batt, AC} em s.
 #include <IOKit/IOService.h>
+#include <kern/thread_call.h>
 #include <IOKit/IOLib.h>
 #include <pexpert/pexpert.h>
 #include <IOKit/IOMessage.h>
@@ -80,10 +81,22 @@ class G15Fan : public IOService {
     uint32_t rp[6] {};                                // pedidos ->0, pedidos ->1, PEG1 ->0 fora do sono, GOFF, servicos achados, ultimo modo
     int rtxPm(uint32_t mode);
     void publishRtxPm();
+    IOReturn rtd3Power(uint32_t op, uint32_t *msOut);  // G15RtxPower: corte/religada pedidos pelo NVRM (RTD3 do RM)
+    bool rtd3Seen {false};                            // o NVRM ja usou o G15RtxPower neste boot (RtxPm fica recusado)
+    bool rtd3Cut {false};                             // energia cortada pelo G15RtxPower (audio pedido para 0 por ele)
+    uint32_t rt[8] {};                                // cortes, religadas, audio ocupado, falhas GOFF, falhas GONN, ms GOFF, ms GONN, ms espera audio
+    void publishRtd3();
     void publishPcieLinks();
     bool pegLdis {false};                             // Link Disable posto no PEG1 (teste #87, so manual)
     IOReturn pegLinkDisable(bool on);
+    IOReturn pegAspm(UInt32 mode);
+    UInt16 pegAspmOrig[3] {0xFFFF, 0xFFFF, 0xFFFF};   // LNKCTL de antes: PEG1, 1:0:0, 1:0:1
+    UInt16 pegLtrOrig {0xFFFF};                         // DEVCTL2 da RTX antes do LTR
     IOReturn dmiDump();
+    IOReturn muxQuery();
+    IOReturn dsmProbe(UInt32 which);
+    IOReturn muxTest(UInt32 secs);
+    IOReturn igpuPanel(int onPct);
     IOReturn pmcDump();
     IOReturn pmcLtrIgnore(uint32_t mask);
 
@@ -433,6 +446,8 @@ static void g15Rtd3Probe(IOService *self, IOACPIPlatformDevice *own) {
     OSSafeReleaseNULL(pc00); OSSafeReleaseNULL(peg1);
 }
 
+static void muxBootStart(G15Fan *fan);
+
 bool G15Fan::start(IOService *provider) {
     if (!IOService::start(provider)) return false;
     g15fl::init("g15fan");
@@ -465,6 +480,7 @@ bool G15Fan::start(IOService *provider) {
     { char pb[4]; if (PE_parse_boot_argn("-g15fan-rtd3probe", pb, sizeof pb)) g15Rtd3Probe(this, acpi); }   // diagnostico do RTD3
     { char b[4]; pepOff = PE_parse_boot_argn("-g15fan-pep-off", b, sizeof b); }   // sem os avisos de Modern Standby
     { char b[4]; rtxIdleCut = PE_parse_boot_argn("-g15fan-rtxpm-corte", b, sizeof b); }   // RtxPm com GOFF
+    { char b[4]; if (PE_parse_boot_argn("-g15muxrtx", b, sizeof b)) muxBootStart(this); }   // gmux: painel na RTX no boot
     sleepNotifier = registerPrioritySleepWakeInterest(sleepWake, this);   // sempre (armar o EC); a RTX so com o SSDT
     if (acpi->validateObject("GOFF") == kIOReturnSuccess && acpi->validateObject("GONN") == kIOReturnSuccess) {
         hasRtx = true;
@@ -534,6 +550,7 @@ void G15Fan::publishRtxPm() {
 
 int G15Fan::rtxPm(uint32_t mode) {                    // 0 NVRM ->0; 2 NVRM e audio ->0; 1 tudo ->1
     if (mode > 2) return kIOReturnBadArgument;
+    if (mode != 1 && rtd3Seen) { LOG("RtxPm: recusado, o RM da NVIDIA executa o RTD3 (G15RtxPower)"); return kIOReturnNotPermitted; }
     const char *cls[] {"NVRM", "NMXAudioDevice", "NMXAudio"};
     unsigned n = mode == 0 ? 1 : 3;
     uint32_t found = 0;
@@ -556,11 +573,73 @@ int G15Fan::rtxPm(uint32_t mode) {                    // 0 NVRM ->0; 2 NVRM e au
     return (found & 1) ? kIOReturnSuccess : kIOReturnNotFound;
 }
 
+// (22/11, projeto GC6 E3c, docs/RTX-GC6.md) Corte de energia para o RTD3 do proprio RM da NVIDIA: o NVRM do fork
+// (nvrmdynpm=2) decide e executa o GC6 e chama callPlatformFunction("G15RtxPower", true, op, &ms) aqui, direto entre
+// kexts, sem o IOPM para a GPU (a funcao 0 continua no estado 2 do IOPM o tempo todo).
+//   op 0 (corte; o NVRM ja fez o GC6 do RM e o D3hot da funcao 0): a funcao 1 (audio HDMI, NMXAudio, cujo codigo nao e
+//        nosso) so para pelo IOPM: changePowerStateTo(0) no NMXAudioDevice/NMXAudio e espera o IOPCIDevice dela chegar
+//        a 0 (ate 3 s; senao devolve o audio a 1 e responde kIOReturnBusy, e o NVRM fica sem corte, so GC6 + D3hot).
+//        Depois GOFF (PG01._OFF, o _PR3 do Linux). O PEG1 fica em D0 (o D3hot dele com o corte travou em 10/11).
+//   op 1 (religar, no contexto do RM, sincrono): GONN (PG01._ON -> PGON espera a RTX responder no PCI), depois o
+//        audio de volta a 1 (assincrono, nao segura a volta da GPU).
+// Sucesso pelo bit 16 do GSLP (RTX cortada agora). Contadores: propriedade "Rtd3Power". RtxPm (G15.app) e recusado
+// depois que o NVRM usou isto (dois donos da energia = a trava de 21/11).
+void G15Fan::publishRtd3() {
+    char b[200];
+    snprintf(b, sizeof b, "cortes %u religadas %u audio ocupado %u falhas GOFF %u GONN %u; ms GOFF %u GONN %u espera audio %u; %s",
+             rt[0], rt[1], rt[2], rt[3], rt[4], rt[5], rt[6], rt[7], rtd3Cut ? "cortada" : "ligada");
+    setProperty("Rtd3Power", b);
+}
+static uint32_t msSince(uint64_t t0) { uint64_t ns = 0; absolutetime_to_nanoseconds(mach_absolute_time() - t0, &ns); return (uint32_t)(ns / 1000000ull); }
+IOReturn G15Fan::rtd3Power(uint32_t op, uint32_t *msOut) {
+    if (!hasRtx || rtxBootOff) return kIOReturnUnsupported;
+    if (op > 1) return kIOReturnBadArgument;
+    rtd3Seen = true;
+    const char *aud[] {"NMXAudioDevice", "NMXAudio"};
+    UInt32 sd = 0;
+    uint64_t t0 = mach_absolute_time();
+    IOReturn ret = kIOReturnSuccess;
+    if (op == 0) {
+        if (rtxIdle) return kIOReturnNotPermitted;     // RtxPm antigo em vigor: nao mexer
+        for (auto c : aud) if (auto sv = findOne(c)) { sv->changePowerStateTo(0); sv->release(); }
+        auto a = findOne("NMXAudioDevice");
+        auto fn1 = pmParent(a);
+        uint32_t w = 0;
+        while (fn1 && fn1->getPowerState() > 0 && w < 3000) { IOSleep(20); w += 20; }
+        const bool audOff = !fn1 || fn1->getPowerState() == 0;
+        OSSafeReleaseNULL(a);
+        rt[7] = w;
+        if (!audOff) {
+            for (auto c : aud) if (auto sv = findOne(c)) { sv->changePowerStateTo(1); sv->release(); }
+            rt[2]++; publishRtd3();
+            LOG("Rtd3Power: audio HDMI nao parou em %u ms, sem corte", w);
+            return kIOReturnBusy;
+        }
+        t0 = mach_absolute_time();
+        callRtx("GOFF", 4);
+        rt[5] = msSince(t0);
+        acpi->evaluateInteger("GSLP", &sd);
+        if (sd & 0x10000) { rtd3Cut = true; rt[0]++; }
+        else { rt[3]++; ret = kIOReturnError; for (auto c : aud) if (auto sv = findOne(c)) { sv->changePowerStateTo(1); sv->release(); } }
+    } else {
+        callRtx("GONN", 5);
+        rt[6] = msSince(t0);
+        acpi->evaluateInteger("GSLP", &sd);
+        if (!(sd & 0x10000)) rt[1]++; else { rt[4]++; ret = kIOReturnError; }
+        if (rtd3Cut || !(sd & 0x10000)) for (auto c : aud) if (auto sv = findOne(c)) { sv->changePowerStateTo(1); sv->release(); }
+        rtd3Cut = (sd & 0x10000) != 0;
+    }
+    if (msOut) *msOut = op == 0 ? rt[5] : rt[6];
+    publishRtd3();
+    return ret;
+}
+
 // (10/11) Religar sob demanda: o G15PM intercepta a abertura de um cliente no NVAccel (programa pedindo a RTX) e chama
 // callPlatformFunction("G15RtxWake") aqui (entre kexts, sem ligacao direta). Com a RTX parada: RtxPm(1) (GONN e o
 // IOPM acorda NVRM/audio) e espera o NVRM chegar ao estado 1 (ate 8 s), para o programa so continuar com a GPU pronta.
 // p1 (opcional, uint32_t*): devolve o tempo de espera em ms (0xFFFFFFFF = nao acordou a tempo).
 IOReturn G15Fan::callPlatformFunction(const OSSymbol *name, bool wait, void *p1, void *p2, void *p3, void *p4) {
+    if (name && name->isEqualTo("G15RtxPower")) return rtd3Power((uint32_t)(uintptr_t)p1, static_cast<uint32_t *>(p2));
     if (!name || !name->isEqualTo("G15RtxWake")) return IOService::callPlatformFunction(name, wait, p1, p2, p3, p4);
     uint32_t ms = 0;
     const bool was = rtxIdle;
@@ -588,7 +667,10 @@ void G15Fan::publishPcieLinks() {
     while (OSObject *o = (it && out) ? it->getNextObject() : nullptr) {
         auto dev = OSDynamicCast(IOPCIDevice, o);
         if (!dev) continue;
-        if (peg1 && rtxIdle && dev->getParentEntry(gIOServicePlane) == peg1) continue;
+        if (peg1 && rtxIdle) {   // RTX parada: nao ler as funcoes dela (PEG1 -> IOPCI2PCIBridge -> funcao)
+            IORegistryEntry *par = dev->getParentEntry(gIOServicePlane);
+            if (par == peg1 || (par && par->getParentEntry(gIOServicePlane) == peg1)) continue;
+        }
         auto dbg = OSDynamicCast(OSString, dev->getProperty("pcidebug"));
         UInt8 pe = 0;
         if (!dev->findPCICapability(kIOPCIPCIExpressCapability, &pe) || !pe) continue;
@@ -637,9 +719,261 @@ IOReturn G15Fan::pegLinkDisable(bool on) {
     return kIOReturnSuccess;
 }
 
+// (17/11) Teste MANUAL do ASPM L1 no link da RTX (docs/RTX-TRAVAS.md, nvrmaspm). A porta PEG1 da CPU anuncia ASPM
+// "nenhum" (LNKCAP 11:10 = 0, gravado uma vez pelo BIOS) e o NullMoth recusa; o driver da NVIDIA no Windows liga o L1
+// por conta propria nas plataformas que conhece (Optimus + bateria/silencioso no G15). LNKCTL e gravavel: aqui
+// {"PegAspm": 2} liga L1 (bits 1:0 = 2) no PEG1 e depois nas funcoes 1:0:0 e 1:0:1 (porta primeiro, como o PCI core);
+// {"PegAspm": 0} devolve os valores de antes (placa primeiro). So com a RTX ligada (filhos no barramento). Nada no boot;
+// a RTX parar/religar refaz o link (reaplicar). Registro "PegAspm": LNKCTL antes/depois e LNKSTA de cada um.
+IOReturn G15Fan::pegAspm(UInt32 mode) {
+    auto port = OSDynamicCast(IOPCIDevice, peg1);
+    if (!port) return kIOReturnNotFound;
+    if (rtxIdle) return kIOReturnNotReady;
+    IOPCIDevice *dev[3] {port, nullptr, nullptr};
+    OSDictionary *m = serviceMatching("IOPCIDevice");
+    OSIterator *it = m ? getMatchingServices(m) : nullptr;
+    OSSafeReleaseNULL(m);
+    while (OSObject *o = it ? it->getNextObject() : nullptr) {
+        auto d = OSDynamicCast(IOPCIDevice, o);
+        if (!d) continue;
+        IORegistryEntry *par = d->getParentEntry(gIOServicePlane);   // PEG1 -> IOPCI2PCIBridge -> funcao da RTX
+        if (par != peg1 && (!par || par->getParentEntry(gIOServicePlane) != peg1)) continue;
+        UInt8 fn = d->getFunctionNumber();
+        if (fn < 2 && !dev[1 + fn]) { d->retain(); dev[1 + fn] = d; }
+    }
+    OSSafeReleaseNULL(it);
+    if (!dev[1]) return kIOReturnNotReady;
+    UInt8 pe[3] {};
+    for (int i = 0; i < 3; i++) if (dev[i] && (!dev[i]->findPCICapability(kIOPCIPCIExpressCapability, &pe[i]) || !pe[i])) dev[i] = nullptr;
+    UInt16 before[3] {}, after[3] {}, sta[3] {};
+    for (int i = 0; i < 3; i++) if (dev[i]) before[i] = dev[i]->configRead16(pe[i] + 0x10);
+    // (17/11) modo | 0x10: liga tambem o LTR (DEVCTL2 bit 10) nas funcoes da RTX que o anunciam (DEVCAP2 bit 11); a porta
+    // ja vem com LTR. O L1SS CTL1 (L1.1/L1.2, ASPM e PCI-PM) ja vem ligado pelo BIOS nas duas pontas; sem LTR o L1.2 nao entra.
+    UInt32 dcap2 = dev[1] ? dev[1]->configRead32(pe[1] + 0x24) : 0;
+    UInt16 dctl2b = dev[1] ? dev[1]->configRead16(pe[1] + 0x28) : 0, dctl2a = dctl2b;
+    if ((mode & 0x10) && (dcap2 & (1u << 11))) {
+        for (int i = 1; i < 3; i++) if (dev[i]) {
+            UInt16 c2 = dev[i]->configRead16(pe[i] + 0x28);
+            if (i == 1 && pegLtrOrig == 0xFFFF) pegLtrOrig = c2;
+            dev[i]->configWrite16(pe[i] + 0x28, (UInt16)(c2 | 0x400));
+        }
+    } else if (!(mode & 0x10) && pegLtrOrig != 0xFFFF) {
+        for (int i = 1; i < 3; i++) if (dev[i]) { UInt16 c2 = dev[i]->configRead16(pe[i] + 0x28); dev[i]->configWrite16(pe[i] + 0x28, (UInt16)((c2 & ~0x400) | (pegLtrOrig & 0x400))); }
+        pegLtrOrig = 0xFFFF;
+    }
+    if (dev[1]) dctl2a = dev[1]->configRead16(pe[1] + 0x28);
+    mode &= 3;
+    auto wr = [&](int i) {
+        if (!dev[i]) return;
+        UInt16 v;
+        if (mode) { if (pegAspmOrig[i] == 0xFFFF) pegAspmOrig[i] = before[i]; v = (UInt16)((before[i] & ~3u) | (mode & 3u)); }
+        else { if (pegAspmOrig[i] == 0xFFFF) return; v = pegAspmOrig[i]; pegAspmOrig[i] = 0xFFFF; }
+        dev[i]->configWrite16(pe[i] + 0x10, v);
+    };
+    if (mode) { wr(0); wr(1); wr(2); } else { wr(1); wr(2); wr(0); }
+    IOSleep(50);
+    for (int i = 0; i < 3; i++) if (dev[i]) { after[i] = dev[i]->configRead16(pe[i] + 0x10); sta[i] = dev[i]->configRead16(pe[i] + 0x12); }
+    char b[260];
+    snprintf(b, sizeof b, "modo %u; PEG1 0x%04x->0x%04x sta 0x%04x; 1:0:0 0x%04x->0x%04x sta 0x%04x; 1:0:1 0x%04x->0x%04x; RTX devcap2 0x%08x (ltr %u) devctl2 0x%04x->0x%04x",
+             mode, before[0], after[0], sta[0], before[1], after[1], sta[1], before[2], after[2], dcap2, (dcap2 >> 11) & 1u, dctl2b, dctl2a);
+    setProperty("PegAspm", b);
+    LOG("PegAspm: %s", b);
+    for (int i = 1; i < 3; i++) OSSafeReleaseNULL(dev[i]);
+    return kIOReturnSuccess;
+}
+
 // (#87, 10/11) "DmiDump": so LEITURA. DMIBAR (registro 0x68 do host bridge 0:0:0, bit 0 = ligado, base nos bits 38:12)
 // mapeado sem cache e copiado (4 KB, leituras de 32 bits) para "DmiRegs" (OSData); "DmiBar" = valor cru do 0x68.
 // O tools/macos-pcielinks.c (dmi) procura a estrutura de link PCIe (LCAP/LCTL/LSTS) para ver o ASPM do DMI CPU<->PCH.
+// (17/11, projeto GC6, docs/RTX-GC6.md) Teste MANUAL: avalia UMA funcao do _DSM da RTX (\_SB.PC00.PEG1.PEGP) quando
+// pedido, para achar qual trava o macOS (avaliar JT/NVOP numa thread do G15PM travou o login). {"DsmProbe": N}:
+// 0 = NVOP 0 (SUPPORT, constante), 1 = JT 0 (SUPPORT, constante), 2 = JT 1 (CAPS: CKNG le o ID da RTX pelo ECAM),
+// 3 = NVOP 0x1A (OPTIMUSCAPS com entrada 0: CKNG + GPRF/OMPR/DGPS). Registro "DsmProbe": funcao, estado da RTX
+// (RtxParked) e resposta. O LOG sai ANTES da chamada.
+IOReturn G15Fan::dsmProbe(UInt32 which) {
+    static const UInt8 jtG[16]   {0x51, 0xA3, 0xEC, 0xCB, 0x7B, 0x06, 0x24, 0x49, 0x9C, 0xBD, 0xB4, 0x6B, 0x00, 0xB8, 0x6F, 0x34};
+    static const UInt8 nvopG[16] {0xF8, 0xD8, 0x86, 0xA4, 0xDA, 0x0B, 0x1B, 0x47, 0xA7, 0x2B, 0x60, 0x42, 0xA6, 0xB5, 0xBE, 0xE0};
+    if (which > 3) return kIOReturnBadArgument;
+    const bool jt = which == 1 || which == 2;
+    const UInt32 fn = which == 0 ? 0 : which == 1 ? 0 : which == 2 ? 1 : 0x1A, rev = jt ? 0x200 : 0x100, in = 0;
+    auto pegp = OSDynamicCast(IOACPIPlatformDevice, IORegistryEntry::fromPath("IOACPIPlane:/_SB/PC00/PEG1@10000/PEGP@0"));
+    if (!pegp) { setProperty("DsmProbe", "sem PEGP no IOACPIPlane"); return kIOReturnNotFound; }
+    LOG("DsmProbe: avaliando %s 0x%x (RTX %s) ...", jt ? "JT" : "NVOP", fn, rtxIdle ? "PARADA" : "ligada");
+    IOSleep(200);
+    OSObject *args[4] = {OSData::withBytes(jt ? jtG : nvopG, 16), OSNumber::withNumber(rev, 32), OSNumber::withNumber(fn, 32), OSData::withBytes(&in, 4)};
+    OSObject *o = nullptr;
+    IOReturn r = (args[0] && args[1] && args[2] && args[3]) ? pegp->evaluateObject("_DSM", &o, args, 4) : kIOReturnNoMemory;
+    for (OSObject *x : args) OSSafeReleaseNULL(x);
+    UInt32 w = 0; unsigned len = 0;
+    if (auto d = OSDynamicCast(OSData, o)) { len = d->getLength(); if (len >= 4) memcpy(&w, d->getBytesNoCopy(), 4); }
+    else if (auto n = OSDynamicCast(OSNumber, o)) { w = n->unsigned32BitValue(); len = 4; }
+    OSSafeReleaseNULL(o); pegp->release();
+    char b[160];
+    snprintf(b, sizeof b, "%s 0x%x com a RTX %s: ret 0x%x, resposta 0x%08x (%u B)", jt ? "JT" : "NVOP", fn, rtxIdle ? "PARADA" : "ligada", r, w, len);
+    setProperty("DsmProbe", b);
+    LOG("DsmProbe: %s", b);
+    return kIOReturnSuccess;
+}
+
+// (17/11) Mux de tela PS8461E (Advanced Optimus/DDS, docs/RTX-EGPU.md): SO LEITURA. Metodos do \_SB.PC00.PEG1.PEGP.LCD0
+// (ssdt11): MXDS(0) = lado do painel (EC2F: 1 ou 2), MXDM(0) = modo (EC72 -> 1..4), MXID(0)/MXID(1) = id do chip.
+// Arg 0 em todos: nenhum escreve no EC (os outros argumentos trocam o mux). Registro "MuxInfo".
+IOReturn G15Fan::muxQuery() {
+    auto lcd = OSDynamicCast(IOACPIPlatformDevice, IORegistryEntry::fromPath("IOACPIPlane:/_SB/PC00/PEG1@10000/PEGP@0/LCD0@8000a450"));
+    if (!lcd) { setProperty("MuxInfo", "sem LCD0 no IOACPIPlane"); LOG("mux: sem LCD0"); return kIOReturnNotFound; }
+    char b[256]; int n = 0;
+    auto q = [&](const char *tag, const char *m, UInt32 arg) {
+        OSObject *res = nullptr; auto a = OSNumber::withNumber(arg, 32); OSObject *params[1] = {a};
+        IOReturn r = a ? lcd->evaluateObject(m, &res, params, 1) : kIOReturnNoMemory;
+        auto num = OSDynamicCast(OSNumber, res);
+        n += snprintf(b + n, sizeof b - n, "%s=0x%x/%llu ", tag, r, num ? num->unsigned64BitValue() : 0xFFFFFFFFull);
+        OSSafeReleaseNULL(res); OSSafeReleaseNULL(a);
+    };
+    q("MXDS", "MXDS", 0); q("MXDM", "MXDM", 0); q("MXID0", "MXID", 0); q("MXID1", "MXID", 1);
+    lcd->release();
+    setProperty("MuxInfo", b);
+    LOG("mux: %s", b);
+    return kIOReturnSuccess;
+}
+
+// (17/11) Fase 2 do gmux (docs/GMUX-G15.md): {"MuxTest": N} (2..10 s) troca o painel para a RTX (MXDS(0x11): EC3B =
+// 0x11) e um thread_call devolve para a UHD depois de N s (MXDS(0x01): EC3B = 0x10), sem depender da tela. Le MXDS(0)
+// antes, logo depois da troca e depois da volta. Registro "MuxTest". DNS (NVIDIA DDS): bit 4 = 1 dGPU, 0 iGPU.
+static IOACPIPlatformDevice *muxLcd() {
+    return OSDynamicCast(IOACPIPlatformDevice, IORegistryEntry::fromPath("IOACPIPlane:/_SB/PC00/PEG1@10000/PEGP@0/LCD0@8000a450"));
+}
+static UInt32 muxCall(IOACPIPlatformDevice *lcd, UInt32 arg, IOReturn *ret) {
+    OSObject *res = nullptr; auto a = OSNumber::withNumber(arg, 32); OSObject *params[1] = {a};
+    IOReturn r = a ? lcd->evaluateObject("MXDS", &res, params, 1) : kIOReturnNoMemory;
+    auto n = OSDynamicCast(OSNumber, res); UInt32 v = n ? n->unsigned32BitValue() : 0xFFFFFFFF;
+    OSSafeReleaseNULL(res); OSSafeReleaseNULL(a);
+    if (ret) *ret = r;
+    return v;
+}
+static thread_call_t gMuxBack = nullptr;
+static G15Fan *gMuxOwner = nullptr;
+static char gMuxLog[200];
+static void muxBackFn(thread_call_param_t, thread_call_param_t) {
+    auto lcd = muxLcd();
+    if (!lcd) { LOG("mux: volta SEM LCD0"); return; }
+    IOReturn r1, r2;
+    UInt32 v = muxCall(lcd, 0x01, &r1);
+    IOSleep(200);
+    UInt32 st = muxCall(lcd, 0x00, &r2);
+    lcd->release();
+    size_t n = strlen(gMuxLog);
+    snprintf(gMuxLog + n, sizeof gMuxLog - n, " volta=0x%x/%u depois=%u", r1, v, st);
+    if (gMuxOwner) gMuxOwner->setProperty("MuxTest", gMuxLog);
+    LOG("mux: %s", gMuxLog);
+}
+
+// (17/11) -g15muxrtx (docs/GMUX-G15.md): painel na RTX ja no boot, com o BIOS em Hybrid. MXDS(0x11) aqui, antes de o NVKMS
+// enumerar (como o SSDT do PR #184 do NullMoth): a RTX ganha framebuffer para o 0x200 e a UHD mantem o seu FB0 vazio.
+// Seguranca: se em 120 s nao houver nenhum NVRMNVDAFramebuffer registrado, devolve o painel a UHD (MXDS(0x01)).
+// Registro "MuxBoot".
+static thread_call_t gMuxBootCheck = nullptr;
+static G15Fan *gMuxBootFan = nullptr;
+static void muxBootCheckFn(thread_call_param_t, thread_call_param_t) {
+    unsigned nfb = 0;
+    auto m = IOService::serviceMatching("NVRMNVDAFramebuffer");
+    auto it = m ? IOService::getMatchingServices(m) : nullptr;
+    OSSafeReleaseNULL(m);
+    while (it && it->getNextObject()) nfb++;
+    OSSafeReleaseNULL(it);
+    auto lcd = muxLcd();
+    IOReturn r = kIOReturnSuccess; UInt32 st = 0xFFFFFFFF, back = 0xFFFFFFFF;
+    if (lcd) {
+        st = muxCall(lcd, 0x00, &r);
+        if (!nfb) { back = muxCall(lcd, 0x01, &r); IOSleep(200); st = muxCall(lcd, 0x00, &r); }
+        lcd->release();
+    }
+    char b[160];
+    snprintf(b, sizeof b, "120s: framebuffers NVIDIA=%u lado=%u %s", nfb, st, nfb ? "(fica na RTX)" : "VOLTOU para a UHD (seguranca)");
+    if (gMuxBootFan) gMuxBootFan->setProperty("MuxBoot", b);
+    LOG("mux boot: %s (volta 0x%x)", b, back);
+}
+static void muxBootStart(G15Fan *fan) {
+    gMuxBootFan = fan;
+    auto lcd = muxLcd();
+    if (!lcd) { fan->setProperty("MuxBoot", "sem LCD0"); LOG("mux boot: sem LCD0"); return; }
+    IOReturn r0, r1, r2;
+    UInt32 antes = muxCall(lcd, 0x00, &r0);
+    UInt32 v = muxCall(lcd, 0x11, &r1);
+    IOSleep(100);
+    UInt32 depois = muxCall(lcd, 0x00, &r2);
+    lcd->release();
+    char b[120];
+    snprintf(b, sizeof b, "boot: antes=%u troca=0x%x/%u depois=%u", antes, r1, v, depois);
+    fan->setProperty("MuxBoot", b);
+    LOG("mux boot: %s", b);
+    if (!gMuxBootCheck) gMuxBootCheck = thread_call_allocate(muxBootCheckFn, nullptr);
+    if (gMuxBootCheck) { uint64_t dl; clock_interval_to_deadline(120, kSecondScale, &dl); thread_call_enter_delayed(gMuxBootCheck, dl); }
+}
+
+IOReturn G15Fan::muxTest(UInt32 secs) {
+    if (secs < 2 || secs > 10) return kIOReturnBadArgument;
+    if (!gMuxBack) gMuxBack = thread_call_allocate(muxBackFn, nullptr);
+    if (!gMuxBack) return kIOReturnNoMemory;
+    if (thread_call_isactive(gMuxBack)) return kIOReturnBusy;
+    auto lcd = muxLcd();
+    if (!lcd) return kIOReturnNotFound;
+    gMuxOwner = this;
+    IOReturn r0, r1, r2;
+    UInt32 antes = muxCall(lcd, 0x00, &r0);
+    // agenda a volta ANTES de trocar: se algo travar depois da troca, a volta ja esta marcada
+    uint64_t dl; clock_interval_to_deadline(secs, kSecondScale, &dl);
+    thread_call_enter_delayed(gMuxBack, dl);
+    UInt32 v = muxCall(lcd, 0x11, &r1);
+    IOSleep(200);
+    UInt32 depois = muxCall(lcd, 0x00, &r2);
+    lcd->release();
+    snprintf(gMuxLog, sizeof gMuxLog, "%us: antes=%u troca=0x%x/%u na_rtx=%u", secs, antes, r1, v, depois);
+    setProperty("MuxTest", gMuxLog);
+    LOG("mux: %s (volta em %u s)", gMuxLog, secs);
+    return r1;
+}
+
+// (17/11) gmux: com o painel na RTX pelo mux, quem acende a energia e a luz de fundo do eDP no modo Hybrid e o PCH
+// (lado Intel). A UHD subiu sem o painel (-g15muxrtx) e nao acendeu: imagem da RTX visivel so com lanterna.
+// {"IgpuPanel": 1} SO LEITURA: PP_STATUS 0xC7200, PP_CONTROL 0xC7204, PWM do PCH (CNP+, como o i915: CTL 0xC8250 bit 31,
+// FREQ 0xC8254, DUTY 0xC8258). {"IgpuPanelOn": N} (1..100): SO LIGA bits: PP_CONTROL |= 0x5 (energia + luz de fundo),
+// DUTY = FREQ*N/100 se FREQ != 0, CTL |= bit 31. Registro "IgpuPanel".
+IOReturn G15Fan::igpuPanel(int onPct) {
+    OSDictionary *m = serviceMatching("IOPCIDevice");
+    OSIterator *it = m ? getMatchingServices(m) : nullptr;
+    OSSafeReleaseNULL(m);
+    IOPCIDevice *gpu = nullptr;
+    while (OSObject *o = it ? it->getNextObject() : nullptr) {
+        auto dev = OSDynamicCast(IOPCIDevice, o);
+        auto dbg = dev ? OSDynamicCast(OSString, dev->getProperty("pcidebug")) : nullptr;
+        if (dbg && dbg->isEqualTo("0:2:0")) { gpu = dev; gpu->retain(); break; }
+    }
+    OSSafeReleaseNULL(it);
+    if (!gpu) { setProperty("IgpuPanel", "sem 0:2:0"); return kIOReturnNotFound; }
+    if ((gpu->configRead16(kIOPCIConfigVendorID)) != 0x8086) { gpu->release(); return kIOReturnNotPermitted; }
+    IOMemoryMap *map = gpu->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0, kIOMapInhibitCache);
+    if (!map || map->getLength() < 0xC9000) { OSSafeReleaseNULL(map); gpu->release(); setProperty("IgpuPanel", "sem BAR0"); return kIOReturnNoMemory; }
+    volatile uint32_t *r = reinterpret_cast<volatile uint32_t *>(map->getVirtualAddress());
+    auto rd = [&](uint32_t a) { return r[a / 4]; };
+    auto wr = [&](uint32_t a, uint32_t v) { r[a / 4] = v; (void)r[a / 4]; };
+    uint32_t pps = rd(0xC7200), ppc = rd(0xC7204), ctl = rd(0xC8250), freq = rd(0xC8254), duty = rd(0xC8258);
+    char b[220];
+    int n = snprintf(b, sizeof b, "antes: PP_STATUS 0x%08x PP_CONTROL 0x%08x PWM CTL 0x%08x FREQ 0x%08x DUTY 0x%08x", pps, ppc, ctl, freq, duty);
+    if (onPct > 0) {
+        if (onPct > 100) onPct = 100;
+        wr(0xC7204, ppc | 0x5);
+        if (freq) wr(0xC8258, (uint32_t)((uint64_t)freq * (uint32_t)onPct / 100));
+        wr(0xC8250, ctl | 0x80000000u);
+        IOSleep(300);
+        pps = rd(0xC7200); ppc = rd(0xC7204); ctl = rd(0xC8250); freq = rd(0xC8254); duty = rd(0xC8258);
+        snprintf(b + n, sizeof b - n, " | depois(%d%%): PP_STATUS 0x%08x PP_CONTROL 0x%08x CTL 0x%08x DUTY 0x%08x", onPct, pps, ppc, ctl, duty);
+    }
+    map->release(); gpu->release();
+    setProperty("IgpuPanel", b);
+    LOG("igpu painel: %s", b);
+    return kIOReturnSuccess;
+}
+
 IOReturn G15Fan::dmiDump() {
     OSDictionary *m = serviceMatching("IOPCIDevice");
     OSIterator *it = m ? getMatchingServices(m) : nullptr;
@@ -733,6 +1067,26 @@ IOReturn G15Fan::setProperties(OSObject *props) {
         IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
         return kIOReturnNotPrivileged;
     if (d->getObject("PcieLinks")) { publishPcieLinks(); return kIOReturnSuccess; }   // so leitura (#87)
+    if (auto n = OSDynamicCast(OSNumber, d->getObject("DsmProbe"))) {   // teste GC6: root ou usuario da sessao
+        if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeLocalUser) != kIOReturnSuccess &&
+            IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
+            return kIOReturnNotPrivileged;
+        return dsmProbe(n->unsigned32BitValue());
+    }
+    if (d->getObject("MuxQuery")) return muxQuery();                                 // so leitura (mux PS8461E)
+    if (d->getObject("IgpuPanel")) return igpuPanel(0);                              // so leitura (painel/PWM do PCH)
+    if (auto n = OSDynamicCast(OSNumber, d->getObject("IgpuPanelOn"))) {   // gmux: acende o painel pelo PCH; root ou sessao
+        if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeLocalUser) != kIOReturnSuccess &&
+            IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
+            return kIOReturnNotPrivileged;
+        return igpuPanel((int)n->unsigned32BitValue());
+    }
+    if (auto n = OSDynamicCast(OSNumber, d->getObject("MuxTest"))) {   // fase 2 do gmux: root ou usuario da sessao
+        if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeLocalUser) != kIOReturnSuccess &&
+            IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
+            return kIOReturnNotPrivileged;
+        return muxTest(n->unsigned32BitValue());
+    }
     if (d->getObject("DmiDump")) return dmiDump();                                   // so leitura (#87)
     if (d->getObject("PmcDump")) return pmcDump();                                   // so leitura (#87)
     if (auto n = OSDynamicCast(OSNumber, d->getObject("PmcLtrIgnore"))) {   // teste #87: root ou usuario da sessao
@@ -746,6 +1100,12 @@ IOReturn G15Fan::setProperties(OSObject *props) {
             IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
             return kIOReturnNotPrivileged;
         return pegLinkDisable(n->unsigned32BitValue() != 0);
+    }
+    if (auto n = OSDynamicCast(OSNumber, d->getObject("PegAspm"))) {   // teste do ASPM L1 da RTX: root ou usuario da sessao
+        if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeLocalUser) != kIOReturnSuccess &&
+            IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
+            return kIOReturnNotPrivileged;
+        return pegAspm(n->unsigned32BitValue());
     }
     if (auto n = OSDynamicCast(OSNumber, d->getObject("RtxPm"))) {   // root ou o usuario da sessao grafica (G15.app)
         if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeLocalUser) != kIOReturnSuccess &&

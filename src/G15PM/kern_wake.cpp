@@ -103,14 +103,72 @@ static IOReturn naNewUC(IOService *that, task_t owningTask, void *securityID, UI
 	return FunctionCast(naNewUC, gNaOrg)(that, owningTask, securityID, type, handler);
 }
 
+// (16/11) RTX como eGPU (docs/RTX-EGPU.md), so com -g15egpu.
+// v1 (IOPCITunnelled no NVAccel) funcionou no Metal mas o repouso caiu no S3 (0x1F): com o bit 13 do config o
+// IOGraphicsAccelerator2 roda o caminho de eGPU no start/systemWillSleep/systemDidWake. v2: o kernel fica como antes; so
+// o que vai para a user space muda: IOAccelDevice2::get_config devolve o bit 13 (Metal: isRemovable, location=external)
+// quando o dono e o NVAccel, e o NVAccel ganha Removable=Yes (libGFXShared: "Preferir GPU externa"/preferRemovable).
+// Registro G15Egpu = {gancho start, starts, gancho get_config, configs marcados}.
+static mach_vm_address_t gNaStartOrg = 0, gGcOrg = 0;
+static IOService *gNvAccel = nullptr;
+static uint32_t gEg[4] {};
+static void egPublish() { IORegistryEntry::getRegistryRoot()->setProperty("G15Egpu", gEg, sizeof(gEg)); }
+static bool naStart(IOService *that, IOService *provider) {
+	bool r = FunctionCast(naStart, gNaStartOrg)(that, provider);
+	if (r) { gNvAccel = that; that->setProperty("Removable", kOSBooleanTrue); }
+	gEg[1]++; egPublish();
+	g15fl::logf("G15PM: NVAccel::start -> %d, Removable (eGPU)", r);
+	return r;
+}
+static IOReturn gcHook(IOService *that, void *out) {
+	IOReturn r = FunctionCast(gcHook, gGcOrg)(that, out);
+	if (r == kIOReturnSuccess && out && gNvAccel && that->getProvider() == gNvAccel) {
+		*static_cast<uint32_t *>(out) |= 0x2000;
+		gEg[3]++; egPublish();
+	}
+	return r;
+}
+static const char *gAfPath[] {"/System/Library/Extensions/IOAcceleratorFamily2.kext/Contents/MacOS/IOAcceleratorFamily2"};
+static KernelPatcher::KextInfo gAf {"com.apple.iokit.IOAcceleratorFamily2", gAfPath, arrsize(gAfPath), {true}, {}, KernelPatcher::KextInfo::Unloaded};
+static void egpuGcInstall() {
+	lilu.onKextLoadForce(&gAf, 1, [](void *, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
+		if (!gAf.loadIndex || index != gAf.loadIndex) return;
+		mach_vm_address_t fn = patcher.solveSymbol(index, "__ZN14IOAccelDevice210get_configEP23IOAccelDeviceConfigData", address, size);
+		if (!fn) { gEg[2] = 2; patcher.clearError(); }
+		else {
+			gGcOrg = patcher.routeFunction(fn, reinterpret_cast<mach_vm_address_t>(gcHook), true);
+			if (patcher.getError() != KernelPatcher::Error::NoError) { gGcOrg = 0; gEg[2] = 3; patcher.clearError(); }
+			else gEg[2] = 1;
+		}
+		egPublish();
+		g15fl::logf("G15PM: gancho do IOAccelDevice2::get_config (eGPU) %s", gEg[2] == 1 ? "instalado" : "FALHOU");
+	});
+}
+
 static const char *gNaPath[] {"/Library/Extensions/NVAccel.kext/Contents/MacOS/NVAccel"};
 static KernelPatcher::KextInfo gNa {"com.nullmoth.NVAccel", gNaPath, arrsize(gNaPath), {true}, {}, KernelPatcher::KextInfo::Unloaded};
 
 void rtxWakeInstall() {
-	if (checkKernelArgument("-g15rtxwake-off")) return;
-	gWk[4] = 9; wkPublish();   // 9 = esperando o NVAccel carregar
+	static bool wake, egpu;
+	wake = !checkKernelArgument("-g15rtxwake-off");
+	egpu = checkKernelArgument("-g15egpu");
+	if (!wake && !egpu) return;
+	if (egpu) egpuGcInstall();
+	if (wake) { gWk[4] = 9; wkPublish(); }   // 9 = esperando o NVAccel carregar
 	lilu.onKextLoadForce(&gNa, 1, [](void *, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
 		if (!gNa.loadIndex || index != gNa.loadIndex) return;
+		if (egpu) {
+			mach_vm_address_t st = patcher.solveSymbol(index, "__ZN7NVAccel5startEP9IOService", address, size);
+			if (!st) { gEg[0] = 2; patcher.clearError(); }
+			else {
+				gNaStartOrg = patcher.routeFunction(st, reinterpret_cast<mach_vm_address_t>(naStart), true);
+				if (patcher.getError() != KernelPatcher::Error::NoError) { gNaStartOrg = 0; gEg[0] = 3; patcher.clearError(); }
+				else gEg[0] = 1;
+			}
+			egPublish();
+			g15fl::logf("G15PM: gancho do NVAccel::start (eGPU) %s", gEg[0] == 1 ? "instalado" : "FALHOU");
+		}
+		if (!wake) return;
 		mach_vm_address_t fn = patcher.solveSymbol(index, "__ZN7NVAccel13newUserClientEP4taskPvjPP12IOUserClient", address, size);
 		if (!fn) { gWk[4] = 2; patcher.clearError(); wkPublish(); g15fl::logf("G15PM: NVAccel::newUserClient nao achado"); return; }
 		gNaOrg = patcher.routeFunction(fn, reinterpret_cast<mach_vm_address_t>(naNewUC), true);

@@ -64,6 +64,20 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     Safari, TextEdit or WhatsApp no longer wake it; Preview's Live Text and games do. Not in this EFI (it replaces
     NullMoth's `NVMTLDriver`).
   - While it is off, the RTX cannot see an HDMI cable. Pick "Ligada" before connecting one.
+- **Optional, since 2026-11-22: GC6 run by NVIDIA's own driver (needs my NVRM build, not included).** With an NVRM built
+  from the `g15-gc6` branch of my NullMoth fork, NVIDIA's resource manager decides when the RTX is idle and runs the whole
+  transition itself (RTD3 "OSPM" mode, no `_DSM` JT): it revokes the apps' mappings of the card
+  (`IOMemoryDescriptor::redirect`), enters GC6 (VRAM kept in self-refresh), D3hot, and `G15Fan` cuts power (`PG01._OFF`).
+  Any driver call or touch of a mapping brings it back synchronously in about 1.24 s, with VRAM intact. G15.app then
+  only shows the state ("GC6, sem energia") and never stops the RTX itself.
+  - Measured on battery with the RTX in GC6: 1.2-1.4 W package with the screen on (PC8 ~78 %), 1.5-1.6 W with it off
+    (PC10 ~72 %). Turning the screen on wakes the RTX without a visible stutter.
+  - A Logitech Lightspeed USB receiver (`046d:c539`) adds about 2 W on its own: it sends input reports all the time and
+    never suspends, so the CPU package stays in PC2. On battery, use the mouse over Bluetooth (the G603 is dual).
+  - Boot-args, only together with that NVRM: `nvrmdynpm=2 nvrmnvpcf=1
+    nvregdwords=DynamicPowerManagement=3;DynamicPowerManagementVideoMemoryThreshold=0;PCIEPowerControl_8086a7190bf81028=39`.
+    Do not add the `nvregdwords` with the stock NVRM: its `os_strtoul` is a stub, so every key there becomes 0.
+  - Write-up (Portuguese): `docs/RTX-GC6.md` in my main repository; findings for NullMoth are being reported upstream.
 - **Sleep (Deep Idle / S0, since the firmware has no S3).** Sleep and wake work, and the panel comes back every time.
   - Tested with 5 RTC cycles in a row, idle sleep, lid-close sleep, and 1 h 44 min on battery.
   - Overnight on battery (5 h 15 min, lid closed): package in PC10 ~100% of the time, about 0.9-1.0 W (~2 %/h).
@@ -132,8 +146,8 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   needs a WindowServer restart: NullMoth only creates the RTX output when a display is present, and WindowServer fixes its
   display pipes when it starts ([nullmoth#288](https://github.com/nullmoth/nvidia-macos-driver/issues/288), #581). The
   workaround (arm the output with NullMoth's sysctls, then restart WindowServer) is described in #288.
-- **RTX idle power:** solved since 2026-11-10 by `G15Fan` + `G15PM` (see "What works"). NullMoth's own RTD3/GC6 still
-  cannot cut power on this machine ([nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)).
+- **RTX idle power:** solved since 2026-11-10 by `G15Fan` + `G15PM` (see "What works"), and since 2026-11-22 by NVIDIA's
+  own GC6 with my NVRM build (optional, same section). Stock NullMoth's RTD3/GC6 still cannot cut power on this machine ([nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)).
   - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 when idle, saving about 12 W.
   - With the RTX visible, the CPU package almost never reaches deep C-states.
 - **UHD hang: fixed on 2026-11-16 (`-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
@@ -256,9 +270,11 @@ Know what that means for your security.
   - WhateverGreen 1.7.2: used only by `config-install.plist`; the system config does not load it.
   - **My builds:**
     - `WhateverXe` (fork above).
-    - `G15Fan`: fans and profiles via Dell WMAX, RTX power cut in sleep and when idle (`RtxPm`), EC wake arming.
+    - `G15Fan`: fans and profiles via Dell WMAX, RTX power cut in sleep and when idle (`RtxPm`, or `G15RtxPower` called
+      by my NVRM build for GC6), EC wake arming.
     - `G15PM`: the XE-PM part of NootedGreen as its own Lilu plug-in (HWP, turbo, C-states, EPP), plus the RTX hooks
-      (`RtxLazy`, `RtxCalls`, `RtxDeny`) and Bluetooth USB idle suspend (`BtIdle`).
+      (`RtxLazy`, `RtxCalls`, `RtxDeny`) and Bluetooth USB idle suspend (`BtIdle`, plus `UsbIdle` for Logitech
+      receivers that go quiet; `sysctl debug.g15usbidle`, 0 turns it off).
     - `AudShim`: speakers, DMIC, headphone jack and headset microphone.
     - `IntelHybridCores`: P-core/E-core scheduling, `hw.perflevel` and Activity Monitor labels. Its own repository:
       [rodgod-rr/IntelHybridCores](https://github.com/rodgod-rr/IntelHybridCores) (source, write-up, measurements).
