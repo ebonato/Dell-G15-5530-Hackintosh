@@ -364,6 +364,56 @@ static NSString *rtxStateName(int s) {
          : s == 2 ? L("em uso", "busy") : s == 1 ? L("ociosa", "idle") : L("desligada", "off");
 }
 
+// (22/11, fim do projeto GC6) Estatisticas da RTX sem acordar a placa, no lugar do seletor Desligada/Ligada/Automatica
+// quando o RM da NVIDIA executa o GC6: "nvrm-rtd3" (NVRM do fork: voltas, tempo em GC6, ultima volta e quem a pediu) e o
+// PerformanceStatistics do NVAccel (uso do nucleo, da memoria e do video; o amostrador do NVRM so consulta o RM com a
+// placa acordada, em GC6 ele responde 0). Potencia, clocks e VRAM exigiriam chamadas ao RM (o SMCNvidiaGPU faz assim e
+// acordaria a placa a cada leitura): ficam de fora.
+typedef struct { BOOL ok, awake; int exits; double lastExitMs, gc6Pct; NSString *by; int core, mem, vid; } RtxStats;
+static double rtd3Num(NSString *s, NSString *key) {
+    NSRange r = [s rangeOfString:key];
+    return r.location == NSNotFound ? -1 : [[s substringFromIndex:NSMaxRange(r)] doubleValue];
+}
+static RtxStats rtxStats(void) {
+    RtxStats x = {NO, NO, 0, 0, 0, nil, -1, -1, -1};
+    CFMutableDictionaryRef m = IOServiceMatching("IOPCIDevice");
+    if (!m) return x;
+    CFDictionarySetValue(m, CFSTR("IOPropertyExistsMatch"), CFSTR("nvrm-rtd3"));
+    io_service_t sv = IOServiceGetMatchingService(kIOMainPortDefault, m);
+    if (!sv) return x;
+    NSString *s = CFBridgingRelease(IORegistryEntryCreateCFProperty(sv, CFSTR("nvrm-rtd3"), kCFAllocatorDefault, 0));
+    IOObjectRelease(sv);
+    if (![s isKindOfClass:NSString.class]) return x;
+    x.ok = YES;
+    x.awake = [s hasPrefix:@"state active"];
+    x.exits = (int)MAX(0, rtd3Num(s, @" exits "));   // "entries N exits N" ("fail enter N exit N" nao casa)
+    x.lastExitMs = MAX(0, rtd3Num(s, @"exit ms last "));
+    double total = rtd3Num(s, @"GC6 s total "), up = NSProcessInfo.processInfo.systemUptime;
+    x.gc6Pct = (total >= 0 && up > 60) ? MIN(100, 100 * total / up) : -1;
+    NSRange r = [s rangeOfString:@"last exit by "];
+    if (r.location != NSNotFound) {
+        NSString *w = [[[s substringFromIndex:NSMaxRange(r)] componentsSeparatedByString:@" |"].firstObject stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        x.by = [w isEqualToString:@"RM"] ? L("um programa", "an app") : [w isEqualToString:@"system sleep"] ? L("o repouso", "sleep")
+             : [w isEqualToString:@"-"] ? nil : w;
+    }
+    if (x.awake) {                                 // acordada: as leituras do NVAccel valem
+        io_service_t a = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("NVAccel"));
+        NSDictionary *ps = a ? CFBridgingRelease(IORegistryEntryCreateCFProperty(a, CFSTR("PerformanceStatistics"), kCFAllocatorDefault, 0)) : nil;
+        if (a) IOObjectRelease(a);
+        if ([ps isKindOfClass:NSDictionary.class]) {
+            x.core = [ps[@"GPU Core Utilization %"] intValue]; x.mem = [ps[@"GPU Memory Utilization %"] intValue];
+            x.vid = MAX([ps[@"GPU Video Engine Utilization %"] intValue], [ps[@"GPU Video Decode Utilization %"] intValue]);
+        }
+    }
+    return x;
+}
+static NSString *rtxStatsLine(RtxStats x) {        // "12 voltas · última 1,2 s · por um programa"
+    if (!x.ok) return @"";
+    if (!x.exits) return L("ainda não acordou do GC6 neste boot", "has not woken from GC6 yet this boot");
+    NSString *t = [NSString localizedStringWithFormat:L("%d voltas · última %.1f s", "%d wakes · last %.1f s"), x.exits, x.lastExitMs / 1000.0];
+    return x.by ? [t stringByAppendingFormat:L(" · por %@", " · by %@"), x.by] : t;
+}
+
 static NSString *tempsText(NSDictionary *st) {
     RtxInfo r = rtxInfo(st);
     return [NSString stringWithFormat:@"CPU %d° · RTX %d° (%@)", fanTemp(st, @"0x01"), r.temp, rtxStateName(r.state)];
@@ -887,12 +937,12 @@ static void batteryExtras(int p) {                 // p = perfil novo
         if (hz > 61 && ![prefs objectForKey:@"hzAntesBateria"]) [prefs setDouble:hz forKey:@"hzAntesBateria"];
         setRefresh(60);
         setBrightness(0.5f, YES);
-        if (rtxMode() != 0) rtxSetMode(0);
+        if (rtxRtd3() < 0 && rtxMode() != 0) rtxSetMode(0);   // com o RM executando o GC6 nao ha modo a trocar
     } else {
         id hz = [prefs objectForKey:@"hzAntesBateria"];
         if (hz) { setRefresh([hz doubleValue]); [prefs removeObjectForKey:@"hzAntesBateria"]; }
         [prefs removeObjectForKey:@"rtxModeAntesBateria"];   // (versao de 11/11 cedo) nao usado mais
-        if (rtxMode() == 0) { rtxSetMode(2); rtxPower(onAC()); }
+        if (rtxRtd3() < 0 && rtxMode() == 0) { rtxSetMode(2); rtxPower(onAC()); }
     }
 }
 
@@ -1632,7 +1682,15 @@ static void panelToggle(NSStatusBarButton *b);
             [self add:pm title:profileName(p.intValue) action:@selector(setProfile:) tag:p.intValue on:p.intValue == cur];
         [menu addItemWithTitle:[L("Perfil: ", "Profile: ") stringByAppendingString:profileName(cur)] action:nil keyEquivalent:@""].submenu = pm;
 
-        if (st[@"RtxParked"]) {                     // G15Fan com RtxPm: seletor RTX ( Desligada | Ligada | Automática )
+        RtxStats rx = rtxStats();
+        if (rx.ok && rtxRtd3() >= 0) {              // (22/11) o RM executa o GC6: estatisticas, sem seletor
+            [menu addItem:NSMenuItem.separatorItem];
+            NSString *l1 = rx.awake ? [NSString stringWithFormat:L("RTX ativa · núcleo %d%% · memória %d%% · vídeo %d%%", "RTX active · core %d%% · memory %d%% · video %d%%"), MAX(rx.core, 0), MAX(rx.mem, 0), MAX(rx.vid, 0)]
+                                    : [NSString stringWithFormat:L("RTX em %@", "RTX in %@"), rtxStateName(2 + MAX(1, rtxRtd3()))];
+            if (rx.gc6Pct >= 0) l1 = [l1 stringByAppendingFormat:L(" · %.0f%% do tempo em GC6", " · %.0f%% of the time in GC6"), rx.gc6Pct];
+            [menu addItemWithTitle:l1 action:nil keyEquivalent:@""];
+            [menu addItemWithTitle:rtxStatsLine(rx) action:nil keyEquivalent:@""];
+        } else if (st[@"RtxParked"]) {              // G15Fan com RtxPm: seletor RTX ( Desligada | Ligada | Automática )
             [menu addItem:NSMenuItem.separatorItem];
             NSMenuItem *ri = [NSMenuItem new];
             NSView *v = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 300, 30)];
@@ -1815,6 +1873,7 @@ static NSStackView *head(NSString *symbol, NSString *title, NSTextField *value) 
     NSSlider *_mic;
     NSButton *_perm;
     NSBox *_rtxCard;
+    NSStackView *_rtxStatsV; NSTextField *_rxCore, *_rxMem, *_rxVid, *_rxGc6, *_rxLine;
     NSTextField *_appV, *_appInfo; NSButton *_bgBtn; NSImageView *_appIcon; NSBox *_appCard; pid_t _bgShownPid; NSString *_bgShownName;
     NSTimer *_timer;
 }
@@ -1867,7 +1926,24 @@ static NSStackView *head(NSString *symbol, NSString *title, NSTextField *value) 
                                                 trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(rtx:)];
     _rtxSeg.segmentDistribution = NSSegmentDistributionFillEqually;
     NSStackView *rh = head(@"cpu.fill", @"RTX 4050", _rtxV); [rh insertView:_rtxDot atIndex:3 inGravity:NSStackViewGravityLeading];
-    _rtxCard = card(vstack(@[rh, _rtxSeg], 8));
+    // (22/11) com o RM executando o GC6: estatisticas no lugar do seletor (o seletor fica de reserva sem o NVRM do fork)
+    _rxCore = lbl(@"--", 15, NSFontWeightSemibold, nil); _rxMem = lbl(@"--", 15, NSFontWeightSemibold, nil);
+    _rxVid = lbl(@"--", 15, NSFontWeightSemibold, nil); _rxGc6 = lbl(@"--", 15, NSFontWeightSemibold, nil);
+    NSMutableArray *cols = [NSMutableArray array];
+    NSArray *caps = @[L("Núcleo", "Core"), L("Memória", "Memory"), L("Vídeo", "Video"), L("Em GC6", "In GC6")];
+    NSArray *vals = @[_rxCore, _rxMem, _rxVid, _rxGc6];
+    for (NSUInteger i = 0; i < 4; i++) {
+        NSTextField *v = vals[i]; v.font = [NSFont monospacedDigitSystemFontOfSize:15 weight:NSFontWeightSemibold];
+        [cols addObject:vstack(@[lbl(caps[i], 10, NSFontWeightMedium, NSColor.secondaryLabelColor), v], 1)];
+    }
+    NSStackView *grid = hstack(cols, 6); grid.distribution = NSStackViewDistributionFillEqually;
+    _rxGc6.toolTip = L("Parte do tempo desde o boot com a RTX em GC6 (desligada pelo próprio driver da NVIDIA)",
+                       "Share of the time since boot with the RTX in GC6 (powered down by NVIDIA's own driver)");
+    _rxLine = lbl(@"", 11, NSFontWeightRegular, NSColor.secondaryLabelColor);
+    _rxLine.toolTip = L("Voltas do GC6 e quanto levou a última (religar a energia, restaurar e acordar o driver)",
+                        "GC6 wakes and how long the last one took (power back, restore, wake the driver)");
+    _rtxStatsV = vstack(@[grid, _rxLine], 6);
+    _rtxCard = card(vstack(@[rh, _rtxSeg, _rtxStatsV], 8));
 
     // app usando a RTX (11/11): cartao proprio, so aparece com um app na RTX; botao "Pausar em 2º plano" so nesta execucao
     _appV = lbl(@"", 12, NSFontWeightRegular, NSColor.secondaryLabelColor);
@@ -1965,8 +2041,17 @@ static NSStackView *head(NSString *symbol, NSString *title, NSTextField *value) 
     _fanV.stringValue = b >= 0 ? boostName(b) : @"";
     _fanSeg.enabled = st != nil;
 
-    _rtxCard.hidden = !st[@"RtxParked"];
+    RtxStats rx = rtxStats();
+    BOOL rmRuns = rx.ok && rtxRtd3() >= 0;          // o RM executa o GC6: estatisticas; senao, o seletor antigo
+    _rtxCard.hidden = !st[@"RtxParked"] && !rmRuns;
+    _rtxSeg.hidden = rmRuns; _rtxStatsV.hidden = !rmRuns;
     _rtxSeg.selectedSegment = rtxMode();
+    if (rmRuns) {
+        NSString *(^pct)(int) = ^(int v) { return v >= 0 ? [NSString stringWithFormat:@"%d%%", v] : @"—"; };
+        _rxCore.stringValue = pct(rx.core); _rxMem.stringValue = pct(rx.mem); _rxVid.stringValue = pct(rx.vid);
+        _rxGc6.stringValue = rx.gc6Pct >= 0 ? [NSString stringWithFormat:@"%.0f%%", rx.gc6Pct] : @"—";
+        _rxLine.stringValue = rtxStatsLine(rx);
+    }
     {                                              // app usando a RTX + chave "Pausar em segundo plano" (so nesta execucao)
         NSString *an = nil; pid_t ap = rtxAppPid(&an);
         if (bgPid) { ap = bgPid; an = bgName; }    // o app escolhido continua aparecendo (mesmo congelado/parada)

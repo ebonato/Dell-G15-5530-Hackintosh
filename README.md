@@ -65,11 +65,14 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     NullMoth's `NVMTLDriver`).
   - While it is off, the RTX cannot see an HDMI cable. Pick "Ligada" before connecting one.
 - **Optional, since 2026-11-22: GC6 run by NVIDIA's own driver (needs my NVRM build, not included).** With an NVRM built
-  from the `g15-gc6` branch of my NullMoth fork, NVIDIA's resource manager decides when the RTX is idle and runs the whole
+  from the [`g15-gc6` branch of my NullMoth fork](https://github.com/rodgod-rr/nvidia-macos-driver/tree/g15-gc6)
+  (`kexts/NVRM/nv_xnu_dynpm.cpp`), NVIDIA's resource manager decides when the RTX is idle and runs the whole
   transition itself (RTD3 "OSPM" mode, no `_DSM` JT): it revokes the apps' mappings of the card
   (`IOMemoryDescriptor::redirect`), enters GC6 (VRAM kept in self-refresh), D3hot, and `G15Fan` cuts power (`PG01._OFF`).
   Any driver call or touch of a mapping brings it back synchronously in about 1.24 s, with VRAM intact. G15.app then
-  only shows the state ("GC6, sem energia") and never stops the RTX itself.
+  never stops the RTX itself: its RTX card swaps the off/on/auto selector for statistics read without waking the card
+  (core/memory/video load while awake, share of the time in GC6, number of wakes, how long the last one took and what
+  asked for it).
   - Measured on battery with the RTX in GC6: 1.2-1.4 W package with the screen on (PC8 ~78 %), 1.5-1.6 W with it off
     (PC10 ~72 %). Turning the screen on wakes the RTX without a visible stutter.
   - A Logitech Lightspeed USB receiver (`046d:c539`) adds about 2 W on its own: it sends input reports all the time and
