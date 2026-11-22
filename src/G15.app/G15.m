@@ -30,6 +30,8 @@
 //    mostra o proprio pedido ("WhatsApp quer acessar o microfone") e, se o usuario permitir, grava no TCC.db do usuario
 //    (como tools/macos-permitir-app.sh) e reinicia o tccd. Nunca permite sozinho; "Nao permitir" fica guardado (prefs
 //    "tccDecisions") e o menu tem "Esquecer respostas". Testado na VM com AMFI desligado (tools/macos-tcc-teste).
+//    Desde 22/11 o AMFI fica ligado (docs/AMFI-ANCHOR.md): o tccd mostra o pedido nativo e esta linha do log nao
+//    aparece, entao o vigia fica parado; continua aqui como rede de seguranca se o AMFI for desligado de novo.
 // Teclas: RegisterEventHotKey (nao pede permissao); se falhar ou com G15KBD_TAP=1, event tap que consome F17/F18
 // (pede Acessibilidade). Preferencias: "defaults read local.g15".
 // Uso:  G15.app/Contents/MacOS/G15            (app; o LaunchAgent local.g15 passa --daemon)
@@ -38,6 +40,7 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #import <IOKit/hid/IOHIDManager.h>
+#import <IOUSBHost/IOUSBHost.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <IOKit/pwr_mgt/IOPM.h>
 #import <IOKit/IOMessage.h>
@@ -121,6 +124,14 @@ static void showHUD(NSString *symbol, NSString *text, double pct) {
 // 02 transicao, duracao em ms (16 bits: menor = mais rapido), tempo (16 bits), r g b. Brilho: 26 <dim> 00 04 00 01 02 03.
 // Nada e gravado na memoria do controlador: no boot ele volta a animacao padrao, e o app reaplica.
 static IOHIDManagerRef mgr;
+// (22/11/2026) Caminho USB direto: com a personalidade "AW-ELC" do G15Fan (kexts/G15Fan/Info.plist) o driver HID da Apple
+// nao casa com o AW-ELC, e o app vira o dono da interface pelo IOUSBHost: liga a politica de ocio (o aparelho suspende
+// 2 s depois do ultimo comando, como no BtIdle) e manda os mesmos pacotes por SET_REPORT de saida no pipe de controle
+// (o modo "ctrl" do tools/test-kbd-elc.py, o padrao testado no Fedora), lendo a resposta por GET_REPORT de entrada.
+// O pipe de interrupcao nunca e aberto (era ele, sondado a cada 10 ms pelo driver HID, que deixava o aparelho 100 %
+// ligado). Sem a personalidade o open falha (o driver HID e dono) e fica o caminho HID de antes.
+static IOUSBHostInterface *elcIf;                  // so mexido na kbq
+static uint64_t elcId;                             // registry id da interface aberta
 static NSInteger kbLevel = 2;                      // 0, 1, 2
 static const int KB_PCT[3] = {0, 50, 100};
 static BOOL kbBattery;                              // (11/11) perfil Bateria: o nivel do meio vale 25% em vez de 50%
@@ -128,7 +139,23 @@ static int kbPct(NSInteger lv) { return lv == 1 && kbBattery ? 25 : KB_PCT[lv]; 
 static dispatch_queue_t kbq;                       // pacotes do controlador em ordem, fora da thread principal
 static volatile NSUInteger kbGen;                  // cada nova cor cancela as que ainda nao comecaram
 
+static BOOL elcReq(uint8_t type, uint8_t req, uint16_t val, NSMutableData *d) {   // roda na kbq
+    IOUSBDeviceRequest r = {type, req, val, 0, (uint16_t)d.length};   // wIndex 0 = interface 0
+    NSError *e = nil;
+    if ([elcIf sendDeviceRequest:r data:d bytesTransferred:NULL completionTimeout:1.0 error:&e]) return YES;
+    NSLog(@"AW-ELC USB: requisicao %02x/%02x falhou: %@", type, req, e.localizedDescription);
+    return NO;
+}
+
 static void kbPackets(NSArray<NSData *> *pkts) {   // roda na kbq
+    if (elcIf) {
+        for (NSData *p in pkts) {
+            if (!elcReq(0x21, 0x09, 0x0200, [p mutableCopy])) break;              // SET_REPORT, saida, sem ID
+            elcReq(0xA1, 0x01, 0x0100, [NSMutableData dataWithLength:33]);         // GET_REPORT, entrada (a resposta)
+            usleep(30000);
+        }
+        return;
+    }
     CFSetRef devs = mgr ? IOHIDManagerCopyDevices(mgr) : NULL;
     CFIndex n = devs ? CFSetGetCount(devs) : 0;
     if (!n) { NSLog(@"AW-ELC 187c:0551 nao encontrado"); if (devs) CFRelease(devs); return; }
@@ -234,7 +261,50 @@ static void kbDeviceAdded(void *ctx, IOReturn res, void *sender, IOHIDDeviceRef 
     NSLog(@"AW-ELC conectado"); kbApplySoon(0.5);
 }
 
+static void elcOpen(io_service_t s, BOOL apply) {   // thread principal
+    uint64_t id = 0; IORegistryEntryGetRegistryEntryID(s, &id);
+    __block BOOL same = NO;
+    dispatch_sync(kbq, ^{ same = elcIf && elcId == id; });
+    if (same) return;
+    NSError *e = nil;
+    IOUSBHostInterface *i = [[IOUSBHostInterface alloc] initWithIOService:s options:IOUSBHostObjectInitOptionsNone queue:nil error:&e
+        interestHandler:^(IOUSBHostObject *o, uint32_t msg, void *arg) {
+            if (msg != kIOMessageServiceIsTerminated) return;
+            dispatch_async(kbq, ^{ if (elcIf == o) { [elcIf destroy]; elcIf = nil; elcId = 0; NSLog(@"AW-ELC USB: desconectado"); } });
+        }];
+    if (!i) { NSLog(@"AW-ELC USB: interface nao abriu (%@), usando o caminho HID", e.localizedDescription); return; }
+    NSError *e2 = nil;
+    if (![i setIdleTimeout:2.0 error:&e2]) NSLog(@"AW-ELC USB: politica de ocio falhou: %@", e2.localizedDescription);
+    dispatch_sync(kbq, ^{ [elcIf destroy]; elcIf = i; elcId = id; });
+    NSLog(@"AW-ELC: dono pelo USB (politica de ocio %.0f s)", i.idleTimeout);
+    if (apply) kbApplySoon(0.5);
+}
+
+static NSMutableDictionary *elcMatching(void) {
+    NSMutableDictionary *m = (__bridge_transfer NSMutableDictionary *)IOServiceMatching("IOUSBHostInterface");
+    m[@"idVendor"] = @0x187c; m[@"idProduct"] = @0x0551; m[@"bConfigurationValue"] = @1; m[@"bInterfaceNumber"] = @0;
+    return m;
+}
+
+static void elcMatched(void *ref, io_iterator_t it) {
+    io_service_t s;
+    while ((s = IOIteratorNext(it))) { elcOpen(s, YES); IOObjectRelease(s); }
+}
+
+static void elcWatch(void) {                       // reabre quando o AW-ELC reaparece (reenumeracao, volta do sono)
+    static IONotificationPortRef port; static io_iterator_t it;
+    if (port) return;
+    port = IONotificationPortCreate(kIOMainPortDefault);
+    CFRunLoopAddSource(CFRunLoopGetMain(), IONotificationPortGetRunLoopSource(port), kCFRunLoopDefaultMode);
+    if (IOServiceAddMatchingNotification(port, kIOMatchedNotification, (__bridge_retained CFDictionaryRef)elcMatching(),
+                                         elcMatched, NULL, &it) == KERN_SUCCESS)
+        elcMatched(NULL, it);                      // esvazia o iterador (a que ja esta aberta e pulada)
+}
+
 static void kbOpen(void) {
+    if (!kbq) kbq = dispatch_queue_create("local.g15.awelc", DISPATCH_QUEUE_SERIAL);
+    io_service_t s = IOServiceGetMatchingService(kIOMainPortDefault, (__bridge_retained CFDictionaryRef)elcMatching());
+    if (s) { elcOpen(s, NO); IOObjectRelease(s); }
     mgr = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
     IOHIDManagerSetDeviceMatching(mgr, (__bridge CFDictionaryRef)@{@kIOHIDVendorIDKey: @0x187c, @kIOHIDProductIDKey: @0x0551});
     IOReturn e = IOHIDManagerOpen(mgr, kIOHIDOptionsTypeNone);
@@ -2272,6 +2342,7 @@ int main(int argc, const char *argv[]) {
             }];
 
         kbOpen();
+        elcWatch();
         IOHIDManagerRegisterDeviceMatchingCallback(mgr, kbDeviceAdded, NULL);
         IOHIDManagerScheduleWithRunLoop(mgr, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
 

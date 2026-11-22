@@ -126,6 +126,13 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     controller suspend at every pause, and after about 1000 cycles the Intel firmware stopped signalling remote wake
     (the mouse stayed "connected" but dead until Bluetooth was toggled). `sudo sysctl debug.g15btidle=0` turns it off,
     or sets another time in ms (then toggle Bluetooth).
+  - **Webcam and keyboard-light controller idle too (since 2026-11-22).** The webcam and the AW-ELC (keyboard light, USB
+    `187c:0551`) stayed 100 % powered: Apple's HID and UVC drivers never set a USB idle policy on them. `G15PM` (`UsbIdle`)
+    sets a 2 s idle policy on the webcam (Photo Booth still works) and, for the AW-ELC, a code-less personality in `G15Fan`
+    keeps Apple's HID driver off the interface so G15.app owns it through IOUSBHost (idle policy + SET/GET_REPORT on the
+    control pipe). Both now suspend fully when idle. The keyboard light turns off after 1 min and back on at a key press.
+    `sudo sysctl debug.g15usbidle=0` turns it off; `debug.g15usbidle_dev` is a device mask (1 Logitech receiver, 2 AW-ELC,
+    4 webcam; default 5). The Logitech receiver still never suspends (it sends reports all the time): use Bluetooth.
 - **iMessage and FaceTime** work (tested 2026-11-14).
 - **Input:** keyboard via VoodooPS2, touchpad via VoodooI2C in GPIO interrupt mode, keyboard backlight (AW-ELC), and the
   Fn keys F5 / F9 / F10 through G15.app.

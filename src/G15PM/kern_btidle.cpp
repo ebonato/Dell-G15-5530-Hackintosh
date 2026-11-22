@@ -86,18 +86,38 @@ static void fwCallFn(thread_call_param_t, thread_call_param_t) { gBi[6] += (uint
 // suspend (a porta ficou 100 % ligada; ChildrenPowerState 2). Mesmo caso do IntelBluetoothFirmware no BtIdle. Com
 // debug.g15usbidle_pm=1 (ou boot-arg g15usbidle_pm=1) eles saem da arvore de energia (PMstop) e o aparelho pode ir ao
 // estado 1 (kIOPMLowPower = suspenso). Padrao 0: experimental (o driver HID deixa de receber os avisos de energia).
-// Registro "G15UsbIdle" = {receptores, interfaces ok, pipes ok, IOReturn interface, IOReturn pipe, ms, pelo gancho,
-// varreduras, AppleUserHIDDevice tirados da arvore de energia}.
-static int gUiMs = 2000, gUiPm = 0;
-static uint32_t gUi[9] {};
+// (22/11, 3a etapa) Outros aparelhos USB internos que ficam 100 % ligados sem fazer nada (tools/macos-usb-portas.sh):
+//  - AW-ELC (187c:0551, luz do teclado, Full Speed): 1 interface HID com IN de interrupcao a cada 10 ms, remote wake sim.
+//    Fica ligado mesmo sem o G15.app (testado: sem nenhum IOHIDLibUserClient, 100 % ligado) -> politica + PMstop do
+//    AppleUserHIDDevice, como no receptor. O G15.app manda SetReport pelo pipe de controle, que retoma o aparelho.
+//    A conferir: se a luz do teclado continua acesa com o AW-ELC suspenso.
+//  - Webcam (0bda:5522, High Speed): o UVCAssistant e dono exclusivo das interfaces de video (14/1 controle, IN de
+//    interrupcao 0x83 a cada 4 ms; 14/2 streaming, isocrono so nas alt >= 1). SEM remote wake (bmAttributes 0x80): o
+//    aviso de status da camera (interrupcao) se perde enquanto suspensa; abrir a camera faz IO de controle e retoma.
+//    Politica nas 2 interfaces de video e so no pipe de interrupcao (nunca no isocrono).
+// sysctl/boot-arg g15usbidle_dev = mascara de aparelhos: 1 receptor Logitech, 2 AW-ELC, 4 webcam (padrao 5). Vale na hora
+// (varredura); o PMstop (g15usbidle_pm=1) vale para os HID (receptor e AW-ELC).
+// Registro "G15UsbIdle" = {aparelhos achados, interfaces ok, pipes ok, IOReturn interface, IOReturn pipe, ms, pelo gancho,
+// varreduras, AppleUserHIDDevice tirados da arvore de energia, mascara}.
+static int gUiMs = 2000, gUiPm = 0, gUiDev = 5;   // 5 = receptor + webcam (22/11: webcam testada, Photo Booth ok)
+static uint32_t gUi[10] {};
 static bool gUiOn = false;
 static thread_call_t gUiCall = nullptr;
-static void uiPublish() { gUi[5] = (uint32_t)gUiMs; IORegistryEntry::getRegistryRoot()->setProperty("G15UsbIdle", gUi, sizeof(gUi)); }
-static bool uiIsReceiver(IORegistryEntry *dev) {
-	if (!dev || biNum(dev, "idVendor") != 0x046d) return false;
-	auto nm = OSDynamicCast(OSString, dev->getProperty("USB Product Name"));
-	return nm && strstr(nm->getCStringNoCopy(), "Receiver");
+static void uiPublish() { gUi[5] = (uint32_t)gUiMs; gUi[9] = (uint32_t)gUiDev; IORegistryEntry::getRegistryRoot()->setProperty("G15UsbIdle", gUi, sizeof(gUi)); }
+enum { kUiRecv = 1, kUiElc = 2, kUiCam = 4 };
+static uint32_t uiKind(IORegistryEntry *dev) {   // so os ligados na mascara
+	if (!dev) return 0;
+	const uint32_t v = biNum(dev, "idVendor"), p = biNum(dev, "idProduct");
+	uint32_t k = 0;
+	if (v == 0x046d) {
+		auto nm = OSDynamicCast(OSString, dev->getProperty("USB Product Name"));
+		if (nm && strstr(nm->getCStringNoCopy(), "Receiver")) k = kUiRecv;
+	} else if (v == 0x187c && p == 0x0551) k = kUiElc;
+	else if (v == 0x0bda && p == 0x5522) k = kUiCam;
+	return k & (uint32_t)gUiDev;
 }
+// interface que recebe a politica: HID (receptor, AW-ELC) ou video (webcam)
+static bool uiIfOk(uint32_t k, IORegistryEntry *c) { return biNum(c, "bInterfaceClass") == (k == kUiCam ? 14u : 3u); }
 static void uiSet(IOService *iface, void *pipe) {
 	auto setPipe = reinterpret_cast<IOReturn (*)(void *, uint32_t)>(gPipeIdle);
 	auto setIf = reinterpret_cast<IOReturn (*)(void *, uint32_t)>(gIfIdle);
@@ -111,22 +131,23 @@ static void uiScan(thread_call_param_t, thread_call_param_t) {
 	auto it = m ? IOService::getMatchingServices(m) : nullptr;
 	OSSafeReleaseNULL(m);
 	while (auto dev = it ? OSDynamicCast(IOService, it->getNextObject()) : nullptr) {
-		if (!uiIsReceiver(dev)) continue;
+		const uint32_t k = uiKind(dev);
+		if (!k) continue;
 		found++;
 		auto ci = dev->getChildIterator(gIOServicePlane);
 		while (auto c = ci ? OSDynamicCast(IOService, ci->getNextObject()) : nullptr) {
-			if (!c->metaCast("IOUSBHostInterface") || biNum(c, "bInterfaceClass") != 3) continue;
+			if (!c->metaCast("IOUSBHostInterface") || !uiIfOk(k, c)) continue;
 			uiSet(c, nullptr);
-			if (gUiPm == 1 && gUiMs > 0) {   // 2a etapa: o driver HID fora da arvore de energia do aparelho
+			if (k != kUiCam && gUiPm == 1 && gUiMs > 0) {   // 2a etapa: o driver HID fora da arvore de energia do aparelho
 				auto hi = c->getChildIterator(gIOServicePlane);
 				while (auto h = hi ? OSDynamicCast(IOService, hi->getNextObject()) : nullptr) {
 					if (strcmp(h->getMetaClass()->getClassName(), "AppleUserHIDDevice") || h->getProperty("G15PMStop")) continue;
 					h->PMstop(); h->setProperty("G15PMStop", true); gUi[8]++;
-					g15fl::logf("G15PM: receptor USB: AppleUserHIDDevice da interface %u fora da arvore de energia", biNum(c, "bInterfaceNumber"));
+					g15fl::logf("G15PM: USB %s: AppleUserHIDDevice da interface %u fora da arvore de energia", k == kUiElc ? "AW-ELC" : "receptor", biNum(c, "bInterfaceNumber"));
 				}
 				OSSafeReleaseNULL(hi);
 			}
-			if (!gCpOrg) continue;
+			if (!gCpOrg || (k == kUiCam && biNum(c, "bInterfaceSubClass") != 1)) continue;   // webcam: so o IN de interrupcao do controle
 			for (uint8_t a = 0x81; a <= 0x87; a++) {
 				auto pipe = reinterpret_cast<OSObject *>(FunctionCast(cpHook, gCpOrg)(c, a));
 				if (!pipe) continue;
@@ -139,11 +160,11 @@ static void uiScan(thread_call_param_t, thread_call_param_t) {
 	OSSafeReleaseNULL(it);
 	gUi[0] = found;
 	uiPublish();
-	if (gUi[7] <= 6) g15fl::logf("G15PM: receptor USB: %u achado(s), politica de ocio %d ms (interfaces ok %u, pipes ok %u, 0x%x/0x%x)",
-	                             found, gUiMs, gUi[1], gUi[2], gUi[3], gUi[4]);
+	if (gUi[7] <= 6) g15fl::logf("G15PM: USB ocioso (mascara %d): %u aparelho(s), politica de ocio %d ms (interfaces ok %u, pipes ok %u, 0x%x/0x%x)",
+	                             gUiDev, found, gUiMs, gUi[1], gUi[2], gUi[3], gUi[4]);
 }
 static bool uiMatched(void *, void *, IOService *dev, IONotifier *) {
-	if (gUiCall && uiIsReceiver(dev)) {
+	if (gUiCall && uiKind(dev)) {
 		uint64_t dl; clock_interval_to_deadline(10, kSecondScale, &dl);
 		thread_call_enter_delayed(gUiCall, dl);
 	}
@@ -154,8 +175,10 @@ static void *cpHook(IOService *that, uint8_t address) {
 	void *pipe = FunctionCast(cpHook, gCpOrg)(that, address);
 	if (!pipe) return pipe;
 	IOService *dev = that->getProvider();
-	if (gUiOn && gUiMs > 0 && (address & 0x80) && uiIsReceiver(dev) && biNum(that, "bInterfaceClass") == 3) {
-		uiSet(that, pipe); gUi[6]++; uiPublish();
+	if (const uint32_t k = (gUiOn && gUiMs > 0 && (address & 0x80)) ? uiKind(dev) : 0) {
+		if (!uiIfOk(k, that)) return pipe;
+		// webcam: o pipe so no controle (14/1, interrupcao); no streaming (isocrono) so a interface
+		uiSet(that, (k == kUiCam && biNum(that, "bInterfaceSubClass") != 1) ? nullptr : pipe); gUi[6]++; uiPublish();
 		return pipe;
 	}
 	if (gBiMs <= 0) return pipe;
@@ -197,6 +220,12 @@ static int uiPmSysctl SYSCTL_HANDLER_ARGS {   // 1 = PMstop nos AppleUserHIDDevi
 	if (!e && req->newptr) { gUiPm = v == 1 ? 1 : 0; if (gUiPm && gUiCall) thread_call_enter(gUiCall); }
 	return e;
 }
+static int uiDevSysctl SYSCTL_HANDLER_ARGS {   // mascara: 1 receptor, 2 AW-ELC, 4 webcam (tirar um bit nao desfaz a politica ja ligada)
+	int v = gUiDev; const int e = sysctl_handle_int(oidp, &v, 0, req);
+	if (!e && req->newptr) { gUiDev = v & 7; if (gUiCall) thread_call_enter(gUiCall); }
+	return e;
+}
+SYSCTL_PROC(_debug, OID_AUTO, g15usbidle_dev, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, uiDevSysctl, "I", "");
 SYSCTL_PROC(_debug, OID_AUTO, g15usbidle_pm, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, uiPmSysctl, "I", "");
 
 static const char *gUsbPath[] {"/System/Library/Extensions/IOUSBHostFamily.kext/Contents/MacOS/IOUSBHostFamily"};
@@ -210,7 +239,9 @@ void btIdleInstall() {
 	if (!checkKernelArgument("-g15usbidle-off")) {
 		PE_parse_boot_argn("g15usbidle", &gUiMs, sizeof(gUiMs));
 		PE_parse_boot_argn("g15usbidle_pm", &gUiPm, sizeof(gUiPm));
+		PE_parse_boot_argn("g15usbidle_dev", &gUiDev, sizeof(gUiDev)); gUiDev &= 7;
 		sysctl_register_oid(&sysctl__debug_g15usbidle); sysctl_register_oid(&sysctl__debug_g15usbidle_pm);
+		sysctl_register_oid(&sysctl__debug_g15usbidle_dev);
 		gUiCall = thread_call_allocate(uiScan, nullptr);
 		gUiOn = gUiCall != nullptr;
 		uiPublish();
