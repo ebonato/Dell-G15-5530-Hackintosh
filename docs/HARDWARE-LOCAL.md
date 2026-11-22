@@ -26,12 +26,34 @@ de texto como `TAHOE (external) (dmg)`. [Perfil Release](../EFI-Live-Release/OC/
 | Disco | Windows no Micron 2550. Tahoe no segundo NVMe de 512 GB | Samsung 970 EVO para macOS, outro NVMe para Fedora | Redimensionou a partição do Windows e instalou o Tahoe em uma partição do mesmo NVMe |
 | Perfil Mac | `MacBookPro16,2` nas EFIs Live | `MacBookPro16,1`, Tahoe 26.7.3 (25G342) | `MacBookPro16,2`, Tahoe 26.7.3 ao final |
 
-CPU, PCI IDs das GPUs e BIOS foram conferidos no Windows. O identificador A78B
-é o mesmo que Rodrigo Rangel usou no Dell. O relato de outro i7-13650HX sem Metal
-no WhateverXe envolvia um HP OMEN com iGPU A788, outro painel e outro par de
-versões do driver. O primeiro teste da UHD no nosso Dell ainda é decisivo.
-[Hardware e gráficos de Rodrigo Rangel](../README.md#what-works) ·
-[Relato do HP OMEN](https://github.com/b00t0x/WhateverXe/issues/51)
+### Intel UHD Graphics e WhateverXe
+
+Intel UHD Graphics é o nome comercial que o Windows mostra. Xe-LP é a
+arquitetura gráfica usada nessa geração. As fichas do i5-13450HX e do
+i7-13650HX indicam 16 unidades de execução em ambos e frequência gráfica
+máxima de 1,45 GHz e 1,55 GHz, respectivamente. As fichas listam
+`4688` para o i5 e `A788` para o i7. O datasheet da plataforma também
+lista `A78B` (revisão `04`, 16 EU) para variantes HX de 6P+4E e 6P+8E.
+[Ficha do i5](https://www.intel.com/content/www/us/en/products/sku/232132/intel-core-i513450hx-processor-20m-cache-up-to-4-60-ghz/specifications.html) ·
+[Ficha do i7](https://www.intel.com/content/www/us/en/products/sku/232101/intel-core-i713650hx-processor-24m-cache-up-to-4-90-ghz/specifications.html) ·
+[IDs PCI da plataforma](https://edc.intel.com/content/www/us/en/design/products/platforms/details/raptor-lake-s/13th-generation-core-processors-datasheet-volume-1-of-2/009/device-ids/) ·
+[Arquitetura Xe-LP](https://www.intel.com/content/www/us/en/developer/articles/guide/lp-api-developer-optimization-guide.html)
+
+O Windows confirmou `8086:A78B`, revisão `04`, no nosso Dell i7.
+Rodrigo Rangel reportou `8086:A78B` e Metal com o painel interno a
+120 Hz no Dell i5. O WhateverXe lista esse ID na família Raptor Lake-S/HX
+e seleciona o suporte pelo ID PCI físico. Já o relato #51 descreve um
+HP OMEN com i7-13650HX, `A788`, painel de 2560 × 1440 e método de
+instalação do pacote Graphics registrado como `None`.
+[Relato de Rodrigo e relato do HP OMEN](https://github.com/b00t0x/WhateverXe/issues/51) ·
+[Seleção da GPU no WhateverXe](https://github.com/b00t0x/WhateverXe/blob/main/docs/device-selection.md)
+
+As duas EFIs Live chegam ao teste de instalação sem WhateverXe. A
+aceleração da UHD no nosso Dell fica para o teste após o primeiro login,
+com o kext e o pacote WhateverXe Graphics para Tahoe em versões
+compatíveis. Para avaliar o painel interno, verificar se ele está
+roteado à iGPU e se o Metal identifica a Intel UHD.
+[Instalação do WhateverXe](https://github.com/b00t0x/WhateverXe#installation)
 
 ### Escolha do SMBIOS
 
