@@ -30,8 +30,10 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     on top of it is also in [rodgod-rr/WhateverXe-Graphics `g15`](https://github.com/rodgod-rr/WhateverXe-Graphics/tree/g15).
 - **RTX 4050 for Metal/compute**, through [NullMoth](https://github.com/nullmoth/nvidia-macos-driver) 3.0. It runs
   alongside the UHD: Metal 3, about 4.9 TFLOPS.
+  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 while it is on and idle, saving about 12 W.
 - **RTX powered off when idle (since 2026-11-10).** NullMoth's own RTD3 (2.9 and 3.0) cannot cut power here (Apple's
-  `evaluateObject` only runs plain method names, and forcing it froze the system). Instead, the RTX goes through the
+  `evaluateObject` only runs plain method names, and forcing it froze the system;
+  [nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)). Instead, the RTX goes through the
   same path as system sleep, while the system stays awake:
   - `G15Fan` asks IOPM to put NVRM and the HDMI audio function in power state 0. NullMoth then suspends the GPU with
     its own sleep code.
@@ -103,6 +105,15 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   `RCxControl`/`CPGControl` blocks stopped RC6 about 60 s after boot (GT stuck in C0, no package C-states).
   `G15AGPMIgpu.kext` (no code) re-injects the same AGPM profile without those two blocks: RC6 back to ~87% idle
   ([WhateverXe#87](https://github.com/b00t0x/WhateverXe/issues/87)).
+- **UHD hang fixed (since 2026-11-16, `-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
+  watchdog) when Apple's ML frameworks ran compute on the GPU: opening PDFs in Preview (Live Text), `mediaanalysisd`,
+  `photoanalysisd`. The compute engine (CCS) and the render engine (RCS) ran in parallel, which Intel's TGL PRM Vol 14
+  forbids ("SVSM: Dual Context - Invalidate hang"); Linux never uses the CCS on this GPU. Apple turns it on from
+  `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
+  driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
+  also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The
+  WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle (a still screen stays at about 1.2-1.7 W of package power). Each hang is
+  written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
 - **Audio:** internal speakers with volume and mute, and the internal microphone (DMIC) with DeepFilterNet3 noise
   suppression. This is `AudShim` + the `XeSpeakers` HAL plug-in.
   - **Headphone jack (since 2026-11-14):** headphones switch automatically with the speakers ("Fones de ouvido"), and a
@@ -149,19 +160,6 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   needs a WindowServer restart: NullMoth only creates the RTX output when a display is present, and WindowServer fixes its
   display pipes when it starts ([nullmoth#288](https://github.com/nullmoth/nvidia-macos-driver/issues/288), #581). The
   workaround (arm the output with NullMoth's sysctls, then restart WindowServer) is described in #288.
-- **RTX idle power:** solved since 2026-11-10 by `G15Fan` + `G15PM` (see "What works"), and since 2026-11-22 by NVIDIA's
-  own GC6 with my NVRM build (optional, same section). Stock NullMoth's RTD3/GC6 still cannot cut power on this machine ([nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)).
-  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 when idle, saving about 12 W.
-  - With the RTX visible, the CPU package almost never reaches deep C-states.
-- **UHD hang: fixed on 2026-11-16 (`-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
-  watchdog) when Apple's ML frameworks ran compute on the GPU: opening PDFs in Preview (Live Text), `mediaanalysisd`,
-  `photoanalysisd`. The compute engine (CCS) and the render engine (RCS) ran in parallel, which Intel's TGL PRM Vol 14
-  forbids ("SVSM: Dual Context - Invalidate hang"); Linux never uses the CCS on this GPU. Apple turns it on from
-  `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
-  driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
-  also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The WhateverXe fork also keeps forcewake on every engine while it executes and
-  releases it as soon as the engine is idle (a still screen stays at about 1.2-1.7 W of package power). Each hang is
-  written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
 - **eDP Panel Self Refresh (on in this config).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
   with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
   WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
