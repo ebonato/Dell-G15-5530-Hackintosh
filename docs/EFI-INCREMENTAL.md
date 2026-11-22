@@ -60,3 +60,15 @@ plist da Live Release está em `G15-Intel/config-live-release.plist` no
 pendrive. Ela corresponde ao perfil `EFI-Live-Release/OC/config.plist` do
 repositório. O carregador do pendrive lê `EFI/OC/config.plist`.
 
+### Erro de leitura do plist no primeiro reinício
+
+Após instalar o Graphics 0.4.4 e reiniciar, o OpenCore parou ao ler
+`EFI/OC/config.plist`. A cópia ativa do pendrive tinha 11 bytes alterados,
+incluindo três bytes NUL. A leitura do XML falhou na linha 631.
+
+O plist ativo foi restaurado a partir deste perfil incremental. O
+`ocvalidate` 1.0.8 aceitou o arquivo no pendrive, e os hashes dos 176
+arquivos da EFI coincidiram com os do repositório. A causa da corrupção
+segue indeterminada. Os scripts do pacote para o Tahoe foram conferidos.
+Eles operam no macOS, incluindo a reconstrução da AuxKC em `/Library`.
+[Repositório do Graphics](https://github.com/b00t0x/WhateverXe-Graphics)
