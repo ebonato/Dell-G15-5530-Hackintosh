@@ -5,12 +5,16 @@ seu próprio SSD, tela interna acelerada a 120 Hz, rede, áudio, teclado,
 touchpad, USB e repouso validados no Dell. A RTX 3050 e o HDMI têm uma etapa
 própria de ativação e teste.
 
-**Estado em 21/11/2026:** o pendrive já abriu a Recuperação gráfica, o Wi-Fi
-funcionou e o instalador preparou o NVMe para a etapa seguinte. O boot
-voltou a travar com e sem o driver APFS do OpenCore. O pendrive foi
-atualizado com o ACPI local e o mapa das três USB-A, do hub USB-C
-traseiro e dos dispositivos internos. O próximo boot verifica a Recuperação e o acesso ao NVMe
-antes da instalação limpa.
+**Teste de 22/11/2026.** A `EFI-Live-Debug` chegou à interface da
+Recuperação no Dell. O log `opencore-2026-11-22-102151.txt` registra o
+OpenCore `DBG-108-2026-09-23`, a substituição da DSDT de 653.360 bytes e
+`EXITBS:START`. A chegada à interface foi confirmada na tela.
+
+O pendrive `TAHOE` está com a `EFI-Live-Release` para repetir esse boot.
+As duas variantes usam o mesmo SMBIOS, as mesmas 11 tabelas ACPI e o
+mesmo mapa USB. A Release usa o menu gráfico OpenCanopy e mantém `-v`.
+O teste termina ao abrir a Recuperação do pendrive, identificada no menu
+de texto como `TAHOE (external) (dmg)`. [Perfil Release](../EFI-Live-Release/OC/config.plist)
 
 ## As três máquinas
 
@@ -18,9 +22,9 @@ antes da instalação limpa.
 | --- | --- | --- | --- |
 | CPU | i7-13650HX, 6P + 8E, 20 threads | i5-13450HX, 6P + 4E | Core 5 210H |
 | Vídeo | UHD `8086:A78B` com tela de 120 Hz em Hybrid/Optimus. RTX 3050 6 GB Laptop `10DE:25EC` | UHD A78B e painel FHD 120 Hz. RTX 4050 Laptop para Metal e HDMI | RTX 3050 6 GB Laptop ligada ao painel pelo MUX em Ultimate. NullMoth após a instalação |
-| ACPI | BIOS 1.37.0, DSDT nativa e ajuste RP25 nos dois perfis do repositório | BIOS 1.0, DSDT modificada para brilho e repouso | SSDTs geradas a partir do dump do próprio ASUS |
+| ACPI | BIOS 1.37.0, DSDT local com RP25 incorporado nos dois perfis Live | BIOS 1.0, DSDT modificada para brilho e repouso | SSDTs geradas a partir do dump do próprio ASUS |
 | Disco | Windows no Micron 2550. Tahoe no segundo NVMe de 512 GB | Samsung 970 EVO para macOS, outro NVMe para Fedora | Redimensionou a partição do Windows e instalou o Tahoe em uma partição do mesmo NVMe |
-| Perfil Mac | `MacBookPro16,1` | `MacBookPro16,1`, Tahoe 26.7.3 (25G342) | `MacBookPro16,2`, Tahoe 26.7.3 ao final |
+| Perfil Mac | `MacBookPro16,2` nas EFIs Live | `MacBookPro16,1`, Tahoe 26.7.3 (25G342) | `MacBookPro16,2`, Tahoe 26.7.3 ao final |
 
 CPU, PCI IDs das GPUs e BIOS foram conferidos no Windows. O identificador A78B
 é o mesmo que Rodrigo Rangel usou no Dell. O relato de outro i7-13650HX sem Metal
@@ -35,9 +39,9 @@ A Apple lista Tahoe 26 para os modelos `MacBookPro16,1` (16 polegadas, 2019)
 e `MacBookPro16,2` (13 polegadas, 2020, quatro portas Thunderbolt 3). O
 `16,1` já abriu a Recuperação no nosso Dell e é a chave de máquina usada pelo
 perfil de energia da UHD no [G15AGPMIgpu](../EFI/OC/Kexts/G15AGPMIgpu.kext/Contents/Info.plist).
-O `16,2` passou no `ocvalidate` em cópias dos dois perfis. Para adotá-lo,
-comparar o boot, Metal, brilho e consumo da UHD no Dell com identidade
-coerente para o novo modelo. Ele segue como opção para um teste separado.
+O `16,2` abriu a Recuperação com a Live Debug e também identifica a Live
+Release. O efeito desse perfil sobre Metal, brilho e consumo será avaliado
+depois da instalação.
 [Modelos de MacBook Pro](https://support.apple.com/en-us/108052)
 
 ## Etapas e critérios de conclusão
@@ -54,17 +58,13 @@ coerente para o novo modelo. Ele segue como opção para um teste separado.
   boot na BGRT e seu checksum variaram. O SSDTTime local foi conferido com
   `iasl.exe` e `acpidump.exe` 20251212. O APIC tem 20 CPUs lógicas habilitadas,
   com IDs 0 a 19 cobertos pela PLUG-ALT.
-- Pendrive `TAHOE` em GPT/FAT32, com OpenCore **DEBUG 1.0.8** e o DMG de
-  Recuperação Tahoe 26.6.2 (25G83) e sua chunklist da Apple em
-  `com.apple.recovery.boot`. O instalador usa `OpenHfsPlus.efi` para ler o
-  HFS+ interno do DMG. O disco de destino usa APFS.
-- No repositório, `EFI/OC/config-install.plist` é a base do instalador e
-  `EFI/OC/config.plist` é o perfil de sistema. No pendrive o OpenCore lê
-  `EFI/OC/config.plist`, hoje com o perfil do instalador. A cópia chamada
-  `config-system.plist` guarda o perfil de sistema para a troca posterior.
-  Cada cópia local usa o mesmo SMBIOS gerado pelo
-  [GenSMBIOS](../tools/GenSMBIOS/README.md), com os quatro identificadores
-  privados fora do Git.
+- Pendrive `TAHOE` em GPT/FAT32, com OpenCore Release 1.0.8 e os arquivos
+  da Recuperação Tahoe 26.6.2 (25G83) em `com.apple.recovery.boot`. A
+  EFI Live usa `HfsPlus.efi` para ler o HFS+ da imagem. O destino do
+  macOS no NVMe dedicado usa APFS.
+- O `EFI/OC/config.plist` ativo no pendrive é a cópia de
+  `EFI-Live-Release/OC/config.plist`. Os perfis derivados de Rodrigo
+  ficam em `EFI/OC` no repositório. [Comparação dos perfis](COMPARACAO-EFI-LIVE-DEBUG.md)
 - O USBToolBox 0.2 e o inventário PnP do Windows confirmaram um único
   controlador PCI, Intel xHCI `8086:7A60` em `00:14.0`. O mapa de
   instalação foi gerado com dez portas observadas. As três USB-A foram
@@ -105,20 +105,23 @@ transporta o teclado separadamente do vídeo DisplayPort.
 
 ### 2. Instalação até o primeiro desktop
 
-- O NVMe dedicado já está em GPT com uma ESP FAT32 de 200 MiB e duas partições
-  APFS de cerca de 256 GB. A primeira contém a instalação preparada. Durante
-  os reinícios, entrar pelo mesmo OpenCore USB e escolher
-  **`macOS Installer`** enquanto a entrada estiver presente. Em seguida,
-  escolher o volume do sistema. O perfil de instalação usa WhateverGreen,
-  `-wegnoegpu` e I2C em polling. Essa etapa funciona com vídeo básico.
-- O primeiro reinício já ocorreu. O log confirmou a carga de
+- Na tentativa anterior, o NVMe de 512 GB tinha uma ESP de 200 MiB e duas
+  partições APFS de cerca de 256 GB. O disco foi limpo depois daquele
+  teste. Para a próxima instalação, identificar o NVMe dedicado na
+  Recuperação. Nos reinícios, usar o mesmo OpenCore USB e selecionar
+  **`macOS Installer`** enquanto essa entrada estiver presente. Depois,
+  selecionar o volume do sistema.
+
+**Histórico do perfil `EFI/OC/config-install.plist`**
+
+- No primeiro reinício daquela instalação, o log confirmou a carga de
   `com.apple.installer/boot.efi` no NVMe, e a tela parou na configuração PCI.
   Mais tarde, a Recuperação USB também parou durante a inicialização. A
   tentativa com `EnableJumpstart=false` usou a Recuperação USB e registrou
   `EXITBS:START` no log `opencore-2026-11-21-164308.txt`. A foto mostra
   o kernel parando durante a listagem das tabelas ACPI mesmo sem carregar
-  o driver APFS do SSD. O log `195200` corresponde ao Windows. O novo
-  perfil ativo no pendrive voltou a usar `EnableJumpstart=true` para poder
+  o driver APFS do SSD. O log `195200` corresponde ao Windows. O perfil de instalação daquela
+  tentativa voltou a usar `EnableJumpstart=true` para poder
   continuar pela etapa APFS após o primeiro reinício. O `ocvalidate 1.0.8`
   aceitou o perfil ativo e o DMG e a chunklist mantêm os hashes originais.
 - O [registro ACPI](../acpi-native/README.md#patches-do-ssdttime-avaliados-na-bios-1370)
@@ -126,54 +129,46 @@ transporta o teclado separadamente do vídeo DisplayPort.
   ALS0. O instalador reconstruído usa FakeEC Laptop, USBX, RTCAWAC,
   HPET e SMBus gerados a partir do dump local, além de PluginType e RP25
   verificados contra a BIOS 1.37.0. A simulação carregou as 21 tabelas.
-  `SetupVirtualMap` está em `false` no Dell e é outro candidato que a live
-  motivou para teste isolado. No ASUS ele resolveu uma falha anterior ao
-  ponto mostrado no Dell. `ResizeAppleGpuBars` está em `-1` no Dell. O
-  valor `0` da live foi escolhido para o ReBAR do ASUS.
+  Nesse perfil, `SetupVirtualMap=false` e `ResizeAppleGpuBars=-1`. As
+  EFIs Live que estamos testando usam `true` e `0`, respectivamente.
   [Manual do OpenCore 1.0.8](https://github.com/acidanthera/OpenCorePkg/blob/1.0.8/Docs/Configuration.tex#L1675-L1733)
 
 **Concluída quando:** o Assistente de Configuração termina, surge o desktop e
 o volume instalado volta a iniciar pelo USB. A porcentagem e os minutos
 estimados são indicadores de progresso. O instalador pode reiniciar várias
-vezes. Para uma tentativa limpa, primeiro confirmar que a EFI reconstruída
-abre a Recuperação e que entrada, USB, rede e NVMe funcionam. Só então
-recriar o destino APFS no NVMe dedicado conforme o layout desejado. O
-Windows está no Micron 2550, com EFI própria.
+vezes. Antes de instalar, conferir entrada, USB, rede e a identificação
+do NVMe dedicado na Recuperação. O Windows está no Micron 2550, com EFI própria.
 [Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
 
 ### 3. Perfil de sistema e boot independente pelo SSD
 
-1. O `config.plist` do repositório já inclui o patch RP25 da BIOS 1.37.0.
-   O `ocvalidate 1.0.8` passou, e a simulação dessa composição com AcpiExec
-   20160930 carregou 24 tabelas e resolveu RP25, PNLF e os métodos GOFF e GONN.
-   O `config-system.plist` do pendrive ainda é a cópia anterior. Ele será
-   atualizado para o teste do perfil de sistema.
-2. Validar o perfil de sistema pelo USB com o mesmo SMBIOS e o sistema
-   instalado. Conferir primeiro tela interna, entrada e boot repetível.
-   Os ajustes de repouso S0, GPIO da tampa/touchpad e corte de energia da
-   RTX têm testes próprios antes de entrar no uso diário.
-3. Identificar a ESP de 200 MiB do NVMe do macOS e copiar a EFI de sistema
-   validada. Iniciar pelo F12 sem o pendrive. Testar também o Windows
-   diretamente no Windows Boot Manager. Guardar a EFI USB que funcionou
-   como meio de recuperação.
+1. Usar como referência a EFI Live que chegar ao login do sistema
+   instalado. Confirmar um novo boot pelo pendrive com o mesmo SMBIOS.
+2. Identificar a partição EFI do NVMe dedicado ao macOS e copiar a EFI
+   validada. Iniciar pelo F12 sem o pendrive e testar o Windows pelo
+   Windows Boot Manager. A EFI do pendrive serve para recuperação.
 
 **Concluída quando:** o Dell inicia Tahoe pelo SSD com o pendrive removido
 e inicia Windows pelo SSD dele. O USB ainda permite recuperar o Tahoe.
 
 ### 4. Aceleração, periféricos e energia
 
+Depois do primeiro login, aproveitar as otimizações de Rodrigo Rangel uma
+por vez sobre a EFI Live validada. Testar cada função com as dependências
+que ela exige. Para vídeo, brilho e repouso, conferir a DSDT da BIOS
+1.37.0 e a RTX 3050 do nosso Dell antes de portar ajustes do equipamento dele.
+
 | Função | Sequência e teste no Dell |
 | --- | --- |
-| **UHD e tela interna** | Validar o fork WhateverXe de Rodrigo Rangel junto com o pacote Tahoe WhateverXe Graphics **0.4.4**. O perfil de sistema carrega WhateverXe e o de instalação carrega WhateverGreen. Após instalar o pacote e reiniciar, conferir Metal, 120 Hz, brilho, reprodução de vídeo e retorno da tela após apagar. O painel interno é a primeira prioridade gráfica. [Pacote 0.4.4](https://github.com/b00t0x/WhateverXe-Graphics/releases/tag/v0.4.4) |
+| **UHD e tela interna** | Validar o fork WhateverXe de Rodrigo Rangel junto com o pacote Tahoe WhateverXe Graphics **0.4.4**. Na EFI de Rodrigo, o perfil de sistema carrega WhateverXe e o de instalação carrega WhateverGreen. Após instalar o pacote e reiniciar, conferir Metal, 120 Hz, brilho, reprodução de vídeo e retorno da tela após apagar. O painel interno é a primeira prioridade gráfica. [Pacote 0.4.4](https://github.com/b00t0x/WhateverXe-Graphics/releases/tag/v0.4.4) |
 | **Patches pós-instalação** | Conferir a versão/build com `sw_vers` e o relatório `install-macos.sh check`. O script de Rodrigo Rangel trata os patches de vídeo VA e o shim Metal stencil, instala XeSpeakers e G15.app e configura `pmset`. Conferir o resultado de cada etapa, pois o script continua em alguns casos de falha. Os patches VA fazem checagens de bytes e guardam cópias em `/Library/G15-uhd`. Revalidar VA e stencil após reinstalar o pacote gráfico. [Pós-instalação de Rodrigo Rangel](../README.md#post-install-in-macos) |
 | **Áudio e entrada** | Testar alto-falantes, microfone e headset com AudShim + XeSpeakers. Validar teclado e teclas Fn com VoodooPS2 e G15.app. Para o touchpad, partir do VoodooI2C/I2CHID de Rodrigo Rangel, conferir o dispositivo real e testar gestos, polling e, em seguida, interrupções GPIO e wake. |
 | **USB e rede** | Validar o mapa próprio em todas as portas testadas, inclusive após repouso. Testar Ethernet Realtek, Wi-Fi Intel, Bluetooth Intel e reconexão. A Recuperação já conectou por Wi-Fi. |
 | **RTX 3050 e HDMI** | Com a UHD estável, testar NullMoth separadamente. Rodrigo Rangel usa **3.0** e a RTX 4050 junto à UHD. A live demonstrou a RTX 3050 em um ASUS com o MUX na dedicada e registrou instabilidade ao trocar versões. No Dell, confirmar Metal na RTX, compatibilidade com o painel interno via UHD, HDMI com cabo ligado no boot e após hotplug e estabilidade em uso real. [Projeto NullMoth](https://github.com/nullmoth/nvidia-macos-driver) · [HDMI no Dell de Rodrigo Rangel](../README.md#what-partly-works) |
 | **Repouso e bateria** | Só depois de testar as duas GPUs, validar S0/Deep Idle, tampa, retorno do painel, retomada de áudio/rede, G15Fan, G15PM, política de E-cores e consumo na bateria. Testar o corte de energia da RTX e os ajustes de idle separadamente. Rodrigo Rangel usou GPIO `GPP_E3` para wake do touchpad. O caminho físico precisa ser conferido no nosso Dell. |
 
-O perfil de instalação usa `csr-active-config=130A0000`. O perfil de
-sistema mantém `430A0000` e o relaxamento da AMFI previsto por Rodrigo Rangel
-para os componentes gráficos. Vincular qualquer ajuste adicional à
+Os perfis derivados de Rodrigo em `EFI/OC` usam `csr-active-config=130A0000`
+na instalação e `430A0000` no sistema. Os dois perfis Live usam `03080000`. Vincular qualquer ajuste adicional à
 versão dos drivers que estamos testando e manter o mesmo SMBIOS.
 
 **Pronto para uso diário quando:** Tahoe e Windows iniciam separadamente,
