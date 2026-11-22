@@ -3,3 +3,6 @@
 /BASE-EFI-INTEL-DESKTOP-13THGEN-14THGEN-RAPTOR-LAKE/EFI-Release
 /BASE-EFI-INTEL-DESKTOP-13THGEN-14THGEN-RAPTOR-LAKE/Extras
 /BASE-EFI-INTEL-DESKTOP-13THGEN-14THGEN-RAPTOR-LAKE/Utils
+tools/CPU-Name/Scripts/__pycache__/__init__.cpython-313.pyc
+tools/CPU-Name/Scripts/__pycache__/plist.cpython-313.pyc
+tools/CPU-Name/Scripts/__pycache__/utils.cpython-313.pyc
