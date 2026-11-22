@@ -1,0 +1,323 @@
+--- a/DSDT.dsl
++++ b/DSDT.dsl
+@@ -1,9 +1,9 @@
+ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+ {
+     /*
+-     * iASL Warning: There were 251 external control methods found during
+-     * disassembly, but only 507 were resolved (4294967040 unresolved). Additional
++     * iASL Warning: There were 252 external control methods found during
++     * disassembly, but only 507 were resolved (4294967041 unresolved). Additional
+      * ACPI tables may be required to properly disassemble the code. This
+      * resulting disassembler output file may not compile because the
+      * disassembler did not know how many arguments to assign to the
+      * unresolved methods. Note: SSDTs can be dynamically loaded at
+@@ -1479,8 +1479,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+     External (VMR2, UnknownObj)
+     External (VMR3, UnknownObj)
+     External (VMR4, UnknownObj)
+     External (XBAS, UnknownObj)
++    External (XOSI, MethodObj)    // Warning: Unknown method, guessing 1 arguments
+     External (ZPPB, FieldUnitObj)
+ 
+     Method (DISP, 1, NotSerialized)
+     {
+@@ -6846,9 +6847,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+         PNLB,   16,
+         PNLC,   16,
+         PNLD,   16,
+         PNLE,   16,
+-        PNLF,   16,
++        XNLF,   16,
+         PNLG,   16,
+         PNLH,   16,
+         PNLI,   16,
+         PNLJ,   16,
+@@ -19646,9 +19647,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+             Method (_INI, 0, NotSerialized)  // _INI: Initialize
+             {
+                 LTEN = LTRF /* \LTRF */
+                 LMSL = PMLF /* \PMLF */
+-                LNSL = PNLF /* \PNLF */
++                LNSL = XNLF /* \XNLF */
+                 If ((HBSL & 0x08))
+                 {
+                     HBCS = One
+                 }
+@@ -27749,9 +27750,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                     0xFED00000,         // Address Base
+                     0x00000400,         // Address Length
+                     _Y39)
+             })
+-            Method (_STA, 0, NotSerialized)  // _STA: Status
++            Method (XSTA, 0, NotSerialized)
+             {
+                 If (HPTE)
+                 {
+                     Return (0x0F)
+@@ -27759,9 +27760,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+ 
+                 Return (Zero)
+             }
+ 
+-            Method (_CRS, 0, Serialized)  // _CRS: Current Resource Settings
++            Method (XCRS, 0, Serialized)
+             {
+                 If (HPTE)
+                 {
+                     CreateDWordField (BUF0, \_SB.PC00.LPCB.HPET._Y39._BAS, HPT0)  // _BAS: Base Address
+@@ -27879,9 +27880,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                     0x01,               // Alignment
+                     0x02,               // Length
+                     )
+                 IRQNoFlags ()
+-                    {2}
++                    {}
+             })
+         }
+ 
+         Device (MATH)
+@@ -28003,9 +28004,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                     0x01,               // Alignment
+                     0x08,               // Length
+                     )
+                 IRQNoFlags ()
+-                    {8}
++                    {}
+             })
+         }
+ 
+         Device (TIMR)
+@@ -28025,9 +28026,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                     0x10,               // Alignment
+                     0x04,               // Length
+                     )
+                 IRQNoFlags ()
+-                    {0}
++                    {}
+             })
+         }
+ 
+         Device (CWDT)
+@@ -28733,51 +28734,51 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                 }
+             }
+ 
+             OSYS = 0x03E8
+-            If (CondRefOf (\_OSI))
++            If (CondRefOf (\XOSI))
+             {
+-                If (_OSI ("Windows 2001"))
++                If (XOSI ("Windows 2001"))
+                 {
+                     OSYS = 0x07D1
+                 }
+ 
+-                If (_OSI ("Windows 2001 SP1"))
++                If (XOSI ("Windows 2001 SP1"))
+                 {
+                     OSYS = 0x07D1
+                 }
+ 
+-                If (_OSI ("Windows 2001 SP2"))
++                If (XOSI ("Windows 2001 SP2"))
+                 {
+                     OSYS = 0x07D2
+                 }
+ 
+-                If (_OSI ("Windows 2001.1"))
++                If (XOSI ("Windows 2001.1"))
+                 {
+                     OSYS = 0x07D3
+                 }
+ 
+-                If (_OSI ("Windows 2006"))
++                If (XOSI ("Windows 2006"))
+                 {
+                     OSYS = 0x07D6
+                 }
+ 
+-                If (_OSI ("Windows 2009"))
++                If (XOSI ("Windows 2009"))
+                 {
+                     OSYS = 0x07D9
+                 }
+ 
+-                If (_OSI ("Windows 2012"))
++                If (XOSI ("Windows 2012"))
+                 {
+                     OSYS = 0x07DC
+                 }
+ 
+-                If (_OSI ("Windows 2013"))
++                If (XOSI ("Windows 2013"))
+                 {
+                     OSYS = 0x07DD
+                 }
+ 
+-                If (_OSI ("Windows 2015"))
++                If (XOSI ("Windows 2015"))
+                 {
+                     OSYS = 0x07DF
+                 }
+             }
+@@ -37250,9 +37251,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+         {
+             Name (_HID, "ACPI000C" /* Processor Aggregator Device */)  // _HID: Hardware ID
+             Method (_STA, 0, NotSerialized)  // _STA: Status
+             {
+-                If (_OSI ("Processor Aggregator Device"))
++                If (XOSI ("Processor Aggregator Device"))
+                 {
+                     Return (0x0F)
+                 }
+                 Else
+@@ -86195,11 +86196,11 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                         Switch (ToInteger (Arg2))
+                         {
+                             Case (Zero)
+                             {
+-                                If (CondRefOf (\_OSI))
++                                If (CondRefOf (\XOSI))
+                                 {
+-                                    If (_OSI ("Windows 2020"))
++                                    If (XOSI ("Windows 2020"))
+                                     {
+                                         Return (Buffer (0x02)
+                                         {
+                                              0xFF, 0x01                                       // ..
+@@ -128900,9 +128901,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                 CreateWordField (WMBU, 0x06, WMI3)
+                 CreateWordField (WMBU, 0x08, WMI4)
+                 CreateWordField (WMBU, 0x0A, WMI5)
+                 CreateWordField (WMBU, 0x0C, WMI6)
+-                If ((OSID () == 0x80))
++                If ((XSID () == 0x80))
+                 {
+                     If (((WMI1 == 0x10) & (WMI2 == 0xE035)))
+                     {
+                         WMI0 = 0x02
+@@ -129606,38 +129607,38 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+     Scope (_SB)
+     {
+         Name (ACOS, Zero)
+         Name (ACSE, Zero)
+-        Method (OSID, 0, NotSerialized)
++        Method (XSID, 0, NotSerialized)
+         {
+             If ((ACOS == Zero))
+             {
+                 ACOS = One
+                 ACSE = Zero
+-                If (CondRefOf (\_OSI))
++                If (CondRefOf (\XOSI))
+                 {
+-                    If (_OSI (WXP))
++                    If (XOSI (WXP))
+                     {
+                         ACOS = 0x10
+                     }
+ 
+-                    If (_OSI (WLG))
++                    If (XOSI (WLG))
+                     {
+                         ACOS = 0x20
+                     }
+ 
+-                    If (_OSI (WIN7))
++                    If (XOSI (WIN7))
+                     {
+                         ACOS = 0x80
+                     }
+ 
+-                    If (_OSI (WIN8))
++                    If (XOSI (WIN8))
+                     {
+                         ACOS = 0x80
+                         ACSE = One
+                     }
+ 
+-                    If (_OSI (WN81))
++                    If (XOSI (WN81))
+                     {
+                         ACOS = 0x80
+                         ACSE = 0x02
+                     }
+@@ -129665,16 +129666,16 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+         }
+ 
+         Method (OIDE, 0, NotSerialized)
+         {
+-            OSID ()
++            XSID ()
+             Local0 = ACSE /* \_SB_.ACSE */
+             Return (Local0)
+         }
+ 
+         Method (STOS, 0, NotSerialized)
+         {
+-            OSID ()
++            XSID ()
+             GENS (0x06, ACOS, Zero)
+             GENS (0x2E, ACSE, Zero)
+         }
+ 
+@@ -129708,21 +129709,21 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+         }
+ 
+         Method (OSJG, 2, NotSerialized)
+         {
+-            If (CondRefOf (\_OSI))
++            If (CondRefOf (\XOSI))
+             {
+-                If (_OSI (WIN7))
++                If (XOSI (WIN7))
+                 {
+                     OSTP = 0x02
+                 }
+ 
+-                If (_OSI (WN81))
++                If (XOSI (WN81))
+                 {
+                     OSTP = One
+                 }
+ 
+-                If (_OSI (WN10))
++                If (XOSI (WN10))
+                 {
+                     OSTP = Zero
+                 }
+             }
+@@ -130337,9 +130338,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                 If ((Arg0 == 0x03))
+                 {
+                     If (((IVD7 != Local0) | (Local0 == Zero)))
+                     {
+-                        If ((OSID () >= 0x20))
++                        If ((XSID () >= 0x20))
+                         {
+                             GLID (Local0)
+                         }
+                         Else
+@@ -130420,9 +130421,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+                     Local1 = VVID /* \_SB_.PC00.PEG1.PEGP.VVID */
+                     EVD5 = One
+                     If ((VVID == 0x10DE))
+                     {
+-                        If ((OSID () != 0x80))
++                        If ((XSID () != 0x80))
+                         {
+                             VDP1 (0x07, Zero)
+                         }
+ 
+@@ -133235,9 +133236,9 @@ DefinitionBlock ("", "DSDT", 2, "DELL  ", "Dell Inc", 0x00000002)
+     Method (SMEE, 1, NotSerialized)
+     {
+         Local0 = Arg0
+         Local0 = GENS (0x11, Zero, Zero)
+-        If ((\_SB.OSID () >= 0x20))
++        If ((\_SB.XSID () >= 0x20))
+         {
+             If ((Local0 & 0x04))
+             {
+                 EV7 (One, Zero)
