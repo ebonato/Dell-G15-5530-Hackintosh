@@ -227,11 +227,41 @@ de 653.360 bytes e a sequência exata do AML da 1.37.0. Ela é aplicada à
 tabela publicada pelo firmware durante o boot. O perfil de sistema no
 repositório também inclui a mesma regra para a DSDT 1.37.0.
 
+O [diff de RP25 em ASL](../acpi-src-live/DSDT-RP25.diff) mostra a
+mudança na declaração de RP25. Nos perfis em `EFI/OC`, a regra em
+`ACPI > Patch` substitui 1.646 bytes a partir do offset `0x1D95A`.
+A sequência foi encontrada uma vez na DSDT coletada.
+
 Na simulação com a DSDT corrigida e as mesmas SSDTs da tentativa, o
 AcpiExec 20160930 carregou as 19 tabelas AML e localizou `RP25`, `STAS`,
 `PXDC` e `BMID`, tanto no modo padrão quanto com `-em`. O iASL
 descompilou o AML e confirmou a nova posição de `RP25`. Com esse patch,
 um boot do pendrive chegou à interface da Recuperação no Dell.
+
+### DSDT dos perfis Live
+
+Os perfis Live Debug e Release carregam a mesma `DSDT-G15-1.37.0.aml`
+em `ACPI > Add`. Os nove patches antes listados em `ACPI > Patch`
+no commit `286fd67` foram aplicados em ordem ao AML coletado neste Dell.
+As cinco regras de HPET e as alterações de PNLF, OSID e _OSI estão na
+mesma tabela que a correção de RP25. No dump, nenhuma dessas regras
+atingia outra tabela carregada. A DSDT mantém o tamanho e o cabeçalho
+originais, com o checksum recalculado.
+
+O [diff de RP25](../acpi-src-live/DSDT-RP25.diff) e o
+[diff das demais correções](../acpi-src-live/DSDT-Live-Extras.diff)
+registram as mudanças em ASL. Os dois diffs, aplicados nessa ordem,
+reproduzem o ASL descompilado com iASL 20251212 a partir de
+`DefinitionBlock`, com finais de linha LF e sem espaços ao fim das
+linhas. O AML foi gerado por substituição de bytes na tabela nativa.
+A recompilação direta do ASL descompilado com iASL apresentou erros
+nas referências do firmware ao controlador embarcado.
+
+O AcpiExec 20160930 carregou as 24 tabelas AML dos perfis Live no modo
+padrão e com `-em`. A DSDT de origem coincidiu com a tabela publicada
+pelo Windows na BIOS 1.37.0. Após alterar a BIOS ou suas configurações,
+compare um novo dump antes de reutilizar esta DSDT, pois a tabela
+contém endereços de memória informados pelo firmware.
 
 ## Patches do SSDTTime avaliados na BIOS 1.37.0
 
