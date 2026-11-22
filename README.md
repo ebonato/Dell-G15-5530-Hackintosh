@@ -12,6 +12,8 @@ instalação de Rodrigo Rangel e cobre o caminho até o boot pelo SSD, a
 aceleração gráfica e o uso diário. Os dumps e testes ficam no
 [registro ACPI](acpi-native/README.md).
 
+Os binários Debug e Release, os perfis do OpenCore e o mapa USB da Live estão na [comparação das EFIs](docs/COMPARACAO-EFI-LIVE-DEBUG.md).
+
 ## Referência upstream — equipamento e resultados de Rodrigo Rangel
 
 Rodrigo Rangel mantém o projeto original do Dell G15 5530. No GitHub, usa
