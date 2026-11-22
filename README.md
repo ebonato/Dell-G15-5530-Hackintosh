@@ -26,7 +26,7 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     [rodgod-rr/WhateverXe `g15-deep-idle`](https://github.com/rodgod-rr/WhateverXe/tree/g15-deep-idle)
     ([write-up](https://github.com/rodgod-rr/WhateverXe/blob/g15-deep-idle/docs/g15-deep-idle/README.md)).
   - It needs the [WhateverXe Graphics](https://github.com/b00t0x/WhateverXe-Graphics) **0.4.4** package (the
-    WhateverXe fork is based on 0.8.2 and publishes the activation token that Graphics 0.4.2+ requires). My patch layer
+    WhateverXe fork is based on 0.8.3 (since 2026-11-22) and publishes the activation token that Graphics 0.4.2+ requires). My patch layer
     on top of it is also in [rodgod-rr/WhateverXe-Graphics `g15`](https://github.com/rodgod-rr/WhateverXe-Graphics/tree/g15).
 - **RTX 4050 for Metal/compute**, through [NullMoth](https://github.com/nullmoth/nvidia-macos-driver) 3.0. It runs
   alongside the UHD: Metal 3, about 4.9 TFLOPS.
@@ -104,7 +104,8 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
   also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The
   WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle
-  (a still screen stays at about 1.2-1.7 W of package power). Each hang is written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
+  (a still screen stays at about 1.2-1.7 W of package power), and applies three render-context workarounds that i915/xe
+  use on this GPU (`0xE18C`, `0x7018`, `0x7300`; `-wex-g15-ctxwa-off` removes them). Each hang is written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
 - **eDP Panel Self Refresh (on in this config, since 2026-11-14).** The boot-arg `wexg15psr=3` turns on PSR1 for
   the internal LG panel: with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
   WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
