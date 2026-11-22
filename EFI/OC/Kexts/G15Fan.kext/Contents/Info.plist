@@ -31,6 +31,30 @@
 			<key>IOProviderClass</key>
 			<string>IOACPIPlatformDevice</string>
 		</dict>
+		<!-- (22/11/2026) AW-ELC (luz do teclado, 187c:0551): personalidade sem codigo que segura a interface HID antes
+		     do driver HID da Apple (AppleUserHIDDrivers). Sem ele nao nasce o AppleUserHIDDevice, que prendia o aparelho
+		     100 % ligado (filho de energia sem kIOPMLowPower e IN de interrupcao sem politica de ocio). O G15.app abre
+		     a interface pelo IOUSBHost, liga a politica de ocio e manda os comandos por SET/GET_REPORT no pipe de
+		     controle. IOService nao abre a interface: so impede o outro driver de casar. -->
+		<key>AW-ELC</key>
+		<dict>
+			<key>CFBundleIdentifier</key>
+			<string>local.g15.G15Fan</string>
+			<key>IOClass</key>
+			<string>IOService</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBHostInterface</string>
+			<key>idVendor</key>
+			<integer>6268</integer>
+			<key>idProduct</key>
+			<integer>1361</integer>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>0</integer>
+			<key>IOProbeScore</key>
+			<integer>10000</integer>
+		</dict>
 	</dict>
 	<key>OSBundleLibraries</key>
 	<dict>

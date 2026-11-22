@@ -7,7 +7,11 @@
 //  fica em PC2 (+5 W). Aqui o IOUSBHostInterface::copyPipe e trocado (Lilu): quando o bluetoothd pega os pipes IN 0x81
 //  (eventos HCI) e 0x82 (ACL) da interface 0 de um BT Intel, liga a politica nos dois e na interface. O aparelho suspende
 //  e acorda sozinho (remote wake) quando tem dado. Como no Linux (btusb autosuspend), o risco e o firmware nao acordar.
-//  sysctl debug.g15btidle = ms da politica (padrao 50; 0 = nao liga). Vale na proxima vez que o BT ligar.
+//  sysctl debug.g15btidle = ms da politica (padrao 2000; 0 = nao liga). Vale na proxima vez que o BT ligar.
+//  (22/11) Padrao 50 -> 2000 ms (o do autosuspend do Linux): com um mouse BLE (G603) e 50 ms o controlador suspendia a
+//  cada pausa (centenas de ciclos por minuto) e depois de ~1000 o firmware do AX201 parou de pedir remote wake: a porta
+//  ficou suspensa e o mouse "conectado" sem funcionar. Com 2000 ms: 25 ciclos em 20 min de uso, sem travar
+//  (logs/macos/bt-g603-btidle2000-*.txt); parado, o BT continua suspenso a maior parte do tempo.
 //  Registro "G15BtIdle" = {gancho (1 ok, 2 simbolo, 3 rota), pipes ligados, interfaces ligadas, ultimo IOReturn do pipe,
 //  ultimo IOReturn da interface, ms}. -g15btidle-off desliga.
 #include <Headers/kern_api.hpp>
@@ -15,11 +19,13 @@
 #include <sys/sysctl.h>
 #include <kern/thread_call.h>
 #include <sys/proc.h>
+#include <pexpert/pexpert.h>
 #include "g15_filelog.hpp"
 
 static mach_vm_address_t gCpOrg = 0, gPipeIdle = 0, gIfIdle = 0;
+static void *cpHook(IOService *that, uint8_t address);
 static uint32_t gBi[7] {};   // [6] = IntelBluetoothFirmware tirados da arvore de energia (automatico)
-static int gBiMs = 50;
+static int gBiMs = 2000;
 static void biPublish() { gBi[5] = (uint32_t)gBiMs; IORegistryEntry::getRegistryRoot()->setProperty("G15BtIdle", gBi, sizeof(gBi)); }
 
 static uint32_t biNum(IORegistryEntry *e, const char *k) {
@@ -65,10 +71,117 @@ static thread_call_t gFwCall = nullptr;
 static uint64_t gFwDevId = 0;
 static void fwCallFn(thread_call_param_t, thread_call_param_t) { gBi[6] += (uint32_t)fwDetach(1); biPublish(); }
 
+// (22/11/2026) Receptor USB de mouse/teclado sem fio da Logitech (046d, "USB Receiver"; aqui o c539 Lightspeed): 3
+// interfaces HID (teclado, mouse, HID++), cada uma com um IN de interrupcao sondado a cada 1 ms (bInterval 1), e o
+// driver HID da Apple (AppleUserHIDDrivers, DriverKit) nao liga politica de ocio: o xHCI busca descritores na memoria a
+// cada ms e o pacote fica em PC2 (+2 W na bateria com a RTX em GC6, docs/RTX-GC6.md 22/11 00:36-00:43:
+// PKGC_BREAK_CAUSE_PCIE_FRM_NONZERO ~460/s). O receptor anuncia remote wakeup (bmAttributes 0xa0): com a politica o
+// aparelho suspende depois de N ms sem relatorio e acorda sozinho quando o mouse/teclado manda algo (o 1o movimento
+// depois do ocio espera a retomada do USB, ~20-40 ms). Liga em dois caminhos: no gancho do copyPipe (se o driver em
+// DriverKit passar por ele) e numa varredura (10 s depois de o receptor aparecer e a cada escrita da sysctl) que pede
+// os pipes IN 0x81-0x87 das interfaces HID com o copyPipe original e liga a politica neles e na interface.
+// sysctl debug.g15usbidle = ms (padrao 2000; 0 = desliga, vale na hora). -g15usbidle-off nao instala nada.
+// (22/11, 2a etapa) So a politica nao basta: os 3 AppleUserHIDDevice (o lado do kernel do driver HID em DriverKit) sao
+// filhos de energia do IOUSBHostDevice num estado sem kIOPMLowPower, e o IOUSBHostFamily.h diz que isso desliga o idle
+// suspend (a porta ficou 100 % ligada; ChildrenPowerState 2). Mesmo caso do IntelBluetoothFirmware no BtIdle. Com
+// debug.g15usbidle_pm=1 (ou boot-arg g15usbidle_pm=1) eles saem da arvore de energia (PMstop) e o aparelho pode ir ao
+// estado 1 (kIOPMLowPower = suspenso). Padrao 0: experimental (o driver HID deixa de receber os avisos de energia).
+// (22/11, 3a etapa) Outros aparelhos USB internos que ficam 100 % ligados sem fazer nada (tools/macos-usb-portas.sh):
+//  - AW-ELC (187c:0551, luz do teclado, Full Speed): 1 interface HID com IN de interrupcao a cada 10 ms, remote wake sim.
+//    Fica ligado mesmo sem o G15.app (testado: sem nenhum IOHIDLibUserClient, 100 % ligado) -> politica + PMstop do
+//    AppleUserHIDDevice, como no receptor. O G15.app manda SetReport pelo pipe de controle, que retoma o aparelho.
+//    A conferir: se a luz do teclado continua acesa com o AW-ELC suspenso.
+//  - Webcam (0bda:5522, High Speed): o UVCAssistant e dono exclusivo das interfaces de video (14/1 controle, IN de
+//    interrupcao 0x83 a cada 4 ms; 14/2 streaming, isocrono so nas alt >= 1). SEM remote wake (bmAttributes 0x80): o
+//    aviso de status da camera (interrupcao) se perde enquanto suspensa; abrir a camera faz IO de controle e retoma.
+//    Politica nas 2 interfaces de video e so no pipe de interrupcao (nunca no isocrono).
+// sysctl/boot-arg g15usbidle_dev = mascara de aparelhos: 1 receptor Logitech, 2 AW-ELC, 4 webcam (padrao 5). Vale na hora
+// (varredura); o PMstop (g15usbidle_pm=1) vale para os HID (receptor e AW-ELC).
+// Registro "G15UsbIdle" = {aparelhos achados, interfaces ok, pipes ok, IOReturn interface, IOReturn pipe, ms, pelo gancho,
+// varreduras, AppleUserHIDDevice tirados da arvore de energia, mascara}.
+static int gUiMs = 2000, gUiPm = 0, gUiDev = 5;   // 5 = receptor + webcam (22/11: webcam testada, Photo Booth ok)
+static uint32_t gUi[10] {};
+static bool gUiOn = false;
+static thread_call_t gUiCall = nullptr;
+static void uiPublish() { gUi[5] = (uint32_t)gUiMs; gUi[9] = (uint32_t)gUiDev; IORegistryEntry::getRegistryRoot()->setProperty("G15UsbIdle", gUi, sizeof(gUi)); }
+enum { kUiRecv = 1, kUiElc = 2, kUiCam = 4 };
+static uint32_t uiKind(IORegistryEntry *dev) {   // so os ligados na mascara
+	if (!dev) return 0;
+	const uint32_t v = biNum(dev, "idVendor"), p = biNum(dev, "idProduct");
+	uint32_t k = 0;
+	if (v == 0x046d) {
+		auto nm = OSDynamicCast(OSString, dev->getProperty("USB Product Name"));
+		if (nm && strstr(nm->getCStringNoCopy(), "Receiver")) k = kUiRecv;
+	} else if (v == 0x187c && p == 0x0551) k = kUiElc;
+	else if (v == 0x0bda && p == 0x5522) k = kUiCam;
+	return k & (uint32_t)gUiDev;
+}
+// interface que recebe a politica: HID (receptor, AW-ELC) ou video (webcam)
+static bool uiIfOk(uint32_t k, IORegistryEntry *c) { return biNum(c, "bInterfaceClass") == (k == kUiCam ? 14u : 3u); }
+static void uiSet(IOService *iface, void *pipe) {
+	auto setPipe = reinterpret_cast<IOReturn (*)(void *, uint32_t)>(gPipeIdle);
+	auto setIf = reinterpret_cast<IOReturn (*)(void *, uint32_t)>(gIfIdle);
+	if (iface && setIf) { IOReturn r = setIf(iface, (uint32_t)gUiMs); gUi[1] += r == kIOReturnSuccess; gUi[3] = (uint32_t)r; }
+	if (pipe && setPipe) { IOReturn r = setPipe(pipe, (uint32_t)gUiMs); gUi[2] += r == kIOReturnSuccess; gUi[4] = (uint32_t)r; }
+}
+static void uiScan(thread_call_param_t, thread_call_param_t) {
+	gUi[7]++;
+	uint32_t found = 0;
+	auto m = IOService::serviceMatching("IOUSBHostDevice");
+	auto it = m ? IOService::getMatchingServices(m) : nullptr;
+	OSSafeReleaseNULL(m);
+	while (auto dev = it ? OSDynamicCast(IOService, it->getNextObject()) : nullptr) {
+		const uint32_t k = uiKind(dev);
+		if (!k) continue;
+		found++;
+		auto ci = dev->getChildIterator(gIOServicePlane);
+		while (auto c = ci ? OSDynamicCast(IOService, ci->getNextObject()) : nullptr) {
+			if (!c->metaCast("IOUSBHostInterface") || !uiIfOk(k, c)) continue;
+			uiSet(c, nullptr);
+			if (k != kUiCam && gUiPm == 1 && gUiMs > 0) {   // 2a etapa: o driver HID fora da arvore de energia do aparelho
+				auto hi = c->getChildIterator(gIOServicePlane);
+				while (auto h = hi ? OSDynamicCast(IOService, hi->getNextObject()) : nullptr) {
+					if (strcmp(h->getMetaClass()->getClassName(), "AppleUserHIDDevice") || h->getProperty("G15PMStop")) continue;
+					h->PMstop(); h->setProperty("G15PMStop", true); gUi[8]++;
+					g15fl::logf("G15PM: USB %s: AppleUserHIDDevice da interface %u fora da arvore de energia", k == kUiElc ? "AW-ELC" : "receptor", biNum(c, "bInterfaceNumber"));
+				}
+				OSSafeReleaseNULL(hi);
+			}
+			if (!gCpOrg || (k == kUiCam && biNum(c, "bInterfaceSubClass") != 1)) continue;   // webcam: so o IN de interrupcao do controle
+			for (uint8_t a = 0x81; a <= 0x87; a++) {
+				auto pipe = reinterpret_cast<OSObject *>(FunctionCast(cpHook, gCpOrg)(c, a));
+				if (!pipe) continue;
+				uiSet(nullptr, pipe);
+				pipe->release();
+			}
+		}
+		OSSafeReleaseNULL(ci);
+	}
+	OSSafeReleaseNULL(it);
+	gUi[0] = found;
+	uiPublish();
+	if (gUi[7] <= 6) g15fl::logf("G15PM: USB ocioso (mascara %d): %u aparelho(s), politica de ocio %d ms (interfaces ok %u, pipes ok %u, 0x%x/0x%x)",
+	                             gUiDev, found, gUiMs, gUi[1], gUi[2], gUi[3], gUi[4]);
+}
+static bool uiMatched(void *, void *, IOService *dev, IONotifier *) {
+	if (gUiCall && uiKind(dev)) {
+		uint64_t dl; clock_interval_to_deadline(10, kSecondScale, &dl);
+		thread_call_enter_delayed(gUiCall, dl);
+	}
+	return true;
+}
+
 static void *cpHook(IOService *that, uint8_t address) {
 	void *pipe = FunctionCast(cpHook, gCpOrg)(that, address);
-	if (!pipe || gBiMs <= 0) return pipe;
+	if (!pipe) return pipe;
 	IOService *dev = that->getProvider();
+	if (const uint32_t k = (gUiOn && gUiMs > 0 && (address & 0x80)) ? uiKind(dev) : 0) {
+		if (!uiIfOk(k, that)) return pipe;
+		// webcam: o pipe so no controle (14/1, interrupcao); no streaming (isocrono) so a interface
+		uiSet(that, (k == kUiCam && biNum(that, "bInterfaceSubClass") != 1) ? nullptr : pipe); gUi[6]++; uiPublish();
+		return pipe;
+	}
+	if (gBiMs <= 0) return pipe;
 	if (biNum(dev, "idVendor") != 0x8087 || biNum(dev, "bDeviceClass") != 0xE0) return pipe;
 	// so quando quem abre e o bluetoothd: a 1a abertura (~2 s do boot) e do proprio IntelBluetoothFirmware no start()
 	if (gFwCall && dev->getRegistryEntryID() != gFwDevId) {
@@ -96,6 +209,25 @@ static int biSysctl SYSCTL_HANDLER_ARGS {
 }
 SYSCTL_PROC(_debug, OID_AUTO, g15btidle, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_ANYBODY | CTLFLAG_LOCKED, nullptr, 0, biSysctl, "I", "");
 
+static int uiSysctl SYSCTL_HANDLER_ARGS {
+	int v = gUiMs; const int e = sysctl_handle_int(oidp, &v, 0, req);
+	if (!e && req->newptr) { gUiMs = v < 0 ? 0 : v > 60000 ? 60000 : v; if (gUiCall) thread_call_enter(gUiCall); }   // 0 = desliga
+	return e;
+}
+SYSCTL_PROC(_debug, OID_AUTO, g15usbidle, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, uiSysctl, "I", "");
+static int uiPmSysctl SYSCTL_HANDLER_ARGS {   // 1 = PMstop nos AppleUserHIDDevice do receptor (na hora; volta so reiniciando)
+	int v = gUiPm; const int e = sysctl_handle_int(oidp, &v, 0, req);
+	if (!e && req->newptr) { gUiPm = v == 1 ? 1 : 0; if (gUiPm && gUiCall) thread_call_enter(gUiCall); }
+	return e;
+}
+static int uiDevSysctl SYSCTL_HANDLER_ARGS {   // mascara: 1 receptor, 2 AW-ELC, 4 webcam (tirar um bit nao desfaz a politica ja ligada)
+	int v = gUiDev; const int e = sysctl_handle_int(oidp, &v, 0, req);
+	if (!e && req->newptr) { gUiDev = v & 7; if (gUiCall) thread_call_enter(gUiCall); }
+	return e;
+}
+SYSCTL_PROC(_debug, OID_AUTO, g15usbidle_dev, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, uiDevSysctl, "I", "");
+SYSCTL_PROC(_debug, OID_AUTO, g15usbidle_pm, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, uiPmSysctl, "I", "");
+
 static const char *gUsbPath[] {"/System/Library/Extensions/IOUSBHostFamily.kext/Contents/MacOS/IOUSBHostFamily"};
 static KernelPatcher::KextInfo gUsb {"com.apple.iokit.IOUSBHostFamily", gUsbPath, arrsize(gUsbPath), {true}, {}, KernelPatcher::KextInfo::Unloaded};
 
@@ -104,6 +236,16 @@ void btIdleInstall() {
 	sysctl_register_oid(&sysctl__debug_g15btidle); sysctl_register_oid(&sysctl__debug_g15btidle_fw);
 	gFwCall = thread_call_allocate(fwCallFn, nullptr);
 	gBi[0] = 9; biPublish();   // 9 = esperando o IOUSBHostFamily
+	if (!checkKernelArgument("-g15usbidle-off")) {
+		PE_parse_boot_argn("g15usbidle", &gUiMs, sizeof(gUiMs));
+		PE_parse_boot_argn("g15usbidle_pm", &gUiPm, sizeof(gUiPm));
+		PE_parse_boot_argn("g15usbidle_dev", &gUiDev, sizeof(gUiDev)); gUiDev &= 7;
+		sysctl_register_oid(&sysctl__debug_g15usbidle); sysctl_register_oid(&sysctl__debug_g15usbidle_pm);
+		sysctl_register_oid(&sysctl__debug_g15usbidle_dev);
+		gUiCall = thread_call_allocate(uiScan, nullptr);
+		gUiOn = gUiCall != nullptr;
+		uiPublish();
+	}
 	lilu.onKextLoadForce(&gUsb, 1, [](void *, KernelPatcher &patcher, size_t index, mach_vm_address_t address, size_t size) {
 		if (!gUsb.loadIndex || index != gUsb.loadIndex) return;
 		gPipeIdle = patcher.solveSymbol(index, "__ZN13IOUSBHostPipe13setIdlePolicyEj", address, size); patcher.clearError();
@@ -114,6 +256,10 @@ void btIdleInstall() {
 		if (patcher.getError() != KernelPatcher::Error::NoError) { gCpOrg = 0; gBi[0] = 3; patcher.clearError(); }
 		else gBi[0] = 1;
 		biPublish();
+		if (gUiOn && gBi[0] == 1) {   // receptor ja presente no boot ou ligado depois: varredura 10 s depois de aparecer
+			auto m = IOService::serviceMatching("IOUSBHostDevice");
+			if (m) { IOService::addMatchingNotification(gIOMatchedNotification, m, uiMatched, nullptr); m->release(); }
+		}
 		g15fl::logf("G15PM: gancho do IOUSBHostInterface::copyPipe %s", gBi[0] == 1 ? "instalado" : "FALHOU");
 	});
 }

@@ -9,6 +9,10 @@ extern void rtd3Install();
 extern void rtxWakeInstall();
 extern void rtxRevokeInstall();
 extern void btIdleInstall();
+extern void muxRmInstall();
+extern void fbsrInstall();
+extern void nvDsmInstall();
+extern void rmLogInstall();
 
 static const char *bootargOff[] {"-g15pmoff"};
 static const char *bootargDebug[] {"-g15pmdbg"};
@@ -32,5 +36,9 @@ PluginConfiguration ADDPR(config) {
 		rtxWakeInstall();
 		rtxRevokeInstall();
 		btIdleInstall();
+		muxRmInstall();
+		fbsrInstall();
+		rmLogInstall();
+		nvDsmInstall();
 	},
 };

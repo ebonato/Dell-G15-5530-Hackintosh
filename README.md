@@ -46,33 +46,10 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     [rodgod-rr/WhateverXe `g15-deep-idle`](https://github.com/rodgod-rr/WhateverXe/tree/g15-deep-idle)
     ([write-up](https://github.com/rodgod-rr/WhateverXe/blob/g15-deep-idle/docs/g15-deep-idle/README.md)).
   - It needs the [WhateverXe Graphics](https://github.com/b00t0x/WhateverXe-Graphics) **0.4.4** package (the
-    WhateverXe fork is based on 0.8.2 and publishes the activation token that Graphics 0.4.2+ requires). My patch layer
+    WhateverXe fork is based on 0.8.3 (since 2026-11-22) and publishes the activation token that Graphics 0.4.2+ requires). My patch layer
     on top of it is also in [rodgod-rr/WhateverXe-Graphics `g15`](https://github.com/rodgod-rr/WhateverXe-Graphics/tree/g15).
 - **RTX 4050 for Metal/compute**, through [NullMoth](https://github.com/nullmoth/nvidia-macos-driver) 3.0. It runs
   alongside the UHD: Metal 3, about 4.9 TFLOPS.
-- **RTX powered off when idle (since 2026-11-10).** NullMoth's own RTD3 (2.9 and 3.0) cannot cut power here (Apple's
-  `evaluateObject` only runs plain method names, and forcing it froze the system). Instead, the RTX goes through the
-  same path as system sleep, while the system stays awake:
-  - `G15Fan` asks IOPM to put NVRM and the HDMI audio function in power state 0. NullMoth then suspends the GPU with
-    its own sleep code.
-  - When the PCIe bridge reaches state 0, `G15Fan` calls `GOFF` (`PG01._OFF`). This needs the boot-arg
-    `-g15fan-rtxpm-corte`.
-  - Turning it back on calls `GONN`, and NullMoth resumes in about 1.2 s.
-  - `G15PM` hooks `NVAccel::newUserClient`, so an app that opens the RTX turns it back on first and waits for it.
-    macOS `systemstats` is refused while the RTX is off (it opened the RTX every ~10 min just to read stats).
-  - **Turn on only for real use (since 2026-11-11, `G15PM` `RtxLazy`).** Opening an app (Notes, TextEdit, Safari)
-    no longer wakes the RTX; the first real GPU call does (a windowed app waits about 2.7 s, VRAM intact).
-  - **"Idle" means no driver calls** (`G15PM` `RtxCalls`) and utilization under 2%, so the RTX can stop with apps
-    still open. A game that keeps drawing in the background keeps it on.
-  - In the Battery profile, `G15PM` `RtxDeny` refuses new RTX opens while it is off (the app falls back to the UHD).
-  - G15.app has an "RTX ( Desligada | Ligada | Automática )" selector (off / on / auto). Auto turns the RTX off after
-    30 s idle on battery or 5 min on AC, and back on when the charger is plugged in. The menu bar shows "RTX" in red
-    when it is off, with the temperature from the EC sensor.
-  - **"App na RTX" card in G15.app:** shows the app using the RTX, with a "Pausar em 2º plano" (pause in background)
-    button for that app only, until it quits. After 30 s in the background the app is frozen (SIGSTOP, its sound
-    muted), so the RTX can turn off; switching back to it resumes it at once and the RTX comes back in about 3 s.
-    Tested with Hollow Knight, including unplugging the charger while it was frozen.
-  - Idle on battery: about 24-29 W, against about 34 W with the RTX on.
   - **RTX as an external GPU (since 2026-11-16, boot-arg `-g15egpu`).** `G15PM` marks the RTX as removable for Metal
     (`IOAccelDevice2::get_config` bit 13 and `Removable` on NVAccel; the kernel's own eGPU path is not used, so sleep is
     unaffected). Apps with "Prefer External GPU" in Finder > Get Info run on the RTX by themselves (Hollow Knight, the
@@ -83,7 +60,40 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     `docs/G15-LAZY-INIT.md`) answers the device properties from a saved snapshot and starts NVK on first real use:
     Safari, TextEdit or WhatsApp no longer wake it; Preview's Live Text and games do. Not in this EFI (it replaces
     NullMoth's `NVMTLDriver`).
-  - While it is off, the RTX cannot see an HDMI cable. Pick "Ligada" before connecting one.
+  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 while it is on and idle, saving about 12 W.
+- **RTX powered off when idle.** Stock NullMoth's own RTD3 (2.9 and 3.0) cannot cut power here (Apple's
+  `evaluateObject` only runs plain method names, and forcing it froze the system;
+  [nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)). There are two ways around it:
+  - **NVIDIA's own GC6 (since 2026-11-22, what I use; needs my NVRM build, not included).** With an NVRM built from the
+    [`g15-gc6` branch of my NullMoth fork](https://github.com/rodgod-rr/nvidia-macos-driver/tree/g15-gc6)
+    (`kexts/NVRM/nv_xnu_dynpm.cpp`), NVIDIA's resource manager decides when the RTX is idle and runs the whole
+    transition itself (RTD3 "OSPM" mode, no `_DSM` JT): it revokes the apps' mappings of the card
+    (`IOMemoryDescriptor::redirect`), enters GC6 (VRAM kept in self-refresh), D3hot, and `G15Fan` cuts power
+    (`PG01._OFF`). Any driver call or touch of a mapping brings it back synchronously in about 1.24 s, with VRAM intact;
+    the rest of the desktop does not stutter meanwhile, and turning the screen on wakes it without a visible pause.
+    G15.app never stops the RTX itself: its RTX card shows statistics read without waking the card (core/memory/video
+    load while awake, share of the time in GC6, number of wakes, how long the last one took and what asked for it).
+    Boot-args, only together with that NVRM: `nvrmdynpm=2 nvrmnvpcf=1
+    nvregdwords=DynamicPowerManagement=3;DynamicPowerManagementVideoMemoryThreshold=0;PCIEPowerControl_8086a7190bf81028=39`.
+    Do not add the `nvregdwords` with the stock NVRM: its `os_strtoul` is a stub, so every key there becomes 0.
+    Write-up (Portuguese): `docs/RTX-GC6.md` in my main repository; findings for NullMoth are being reported upstream.
+  - **With stock NullMoth (since 2026-11-10): the RTX goes through the system sleep path while the system stays
+    awake.** `G15Fan` asks IOPM to put NVRM and the HDMI audio function in power state 0, NullMoth suspends the GPU with
+    its own sleep code, and when the PCIe bridge reaches state 0 `G15Fan` calls `GOFF` (`PG01._OFF`, boot-arg
+    `-g15fan-rtxpm-corte`); `GONN` brings it back and NullMoth resumes in about 1.2 s. `G15PM` turns it back on when an
+    app opens the RTX and waits for it (`NVAccel::newUserClient`), only at the first real GPU call (`RtxLazy`), counts
+    "idle" as no driver calls (`RtxCalls`) so it can stop with apps open, refuses `systemstats` while it is off, and in
+    the Battery profile refuses new RTX opens while it is off (`RtxDeny`). G15.app decides when: an
+    "RTX ( Desligada | Ligada | Automática )" selector, where Auto turns it off after 30 s idle on battery or 5 min on AC.
+  - **"App na RTX" card in G15.app (both ways):** shows the app using the RTX, with a "Pausar em 2º plano" (pause in
+    background) button for that app only, until it quits. After 30 s in the background the app is frozen (SIGSTOP, its
+    sound muted), so the RTX can turn off; switching back to it resumes it at once.
+  - **Measured on battery with the RTX powered off (both ways):** about 1.2-1.7 W of CPU package with the screen on
+    (PC8 ~75-80 %) and 1.5-1.7 W with it off (PC10 ~70 %). With the RTX on, the package almost never leaves PC2/C0.
+    A Logitech Lightspeed USB receiver (`046d:c539`) adds about 2 W on its own: it sends input reports all the time and
+    never suspends, so the package stays in PC2. On battery, use the mouse over Bluetooth (the G603 is dual).
+  - **HDMI:** a powered-off RTX cannot see a cable. With stock NullMoth, pick "Ligada" before connecting one; with the
+    GC6 build this is not tested yet.
 - **Sleep (Deep Idle / S0, since the firmware has no S3).** Sleep and wake work, and the panel comes back every time.
   - Tested with 5 RTC cycles in a row, idle sleep, lid-close sleep, and 1 h 44 min on battery.
   - Overnight on battery (5 h 15 min, lid closed): package in PC10 ~100% of the time, about 0.9-1.0 W (~2 %/h).
@@ -106,6 +116,21 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   `RCxControl`/`CPGControl` blocks stopped RC6 about 60 s after boot (GT stuck in C0, no package C-states).
   `G15AGPMIgpu.kext` (no code) re-injects the same AGPM profile without those two blocks: RC6 back to ~87% idle
   ([WhateverXe#87](https://github.com/b00t0x/WhateverXe/issues/87)).
+- **UHD hang fixed (since 2026-11-16, `-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
+  watchdog) when Apple's ML frameworks ran compute on the GPU: opening PDFs in Preview (Live Text), `mediaanalysisd`,
+  `photoanalysisd`. The compute engine (CCS) and the render engine (RCS) ran in parallel, which Intel's TGL PRM Vol 14
+  forbids ("SVSM: Dual Context - Invalidate hang"); Linux never uses the CCS on this GPU. Apple turns it on from
+  `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
+  driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
+  also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The
+  WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle
+  (a still screen stays at about 1.2-1.7 W of package power), and applies three render-context workarounds that i915/xe
+  use on this GPU (`0xE18C`, `0x7018`, `0x7300`; `-wex-g15-ctxwa-off` removes them). Each hang is written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
+- **eDP Panel Self Refresh (on in this config, since 2026-11-14).** The boot-arg `wexg15psr=3` turns on PSR1 for
+  the internal LG panel: with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
+  WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
+  timed out" in the kernel log) and the first frame after a still screen could be late. The WindowServer freezes seen
+  with PSR in the first days were the hang above. Remove the boot-arg, or `sudo sysctl debug.g15psr=0`, to turn it off.
 - **Audio:** internal speakers with volume and mute, and the internal microphone (DMIC) with DeepFilterNet3 noise
   suppression. This is `AudShim` + the `XeSpeakers` HAL plug-in.
   - **Headphone jack (since 2026-11-14):** headphones switch automatically with the speakers ("Fones de ouvido"), and a
@@ -118,7 +143,17 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     stayed at PC2 (about +5 W). `G15PM` (`BtIdle`) sets the IOUSBHost idle policy on the Bluetooth interfaces and its IN
     pipes, and takes the idle `IntelBluetoothFirmware` driver out of the power tree (it blocked idle suspend). The port is
     now suspended about half the time and idle power with Bluetooth on is the same as with it off (about 2.2 W). Headsets,
-    mice and sleep work. `sudo sysctl debug.g15btidle=0` turns it off (then toggle Bluetooth).
+    mice and sleep work. The idle time is 2 s (as Linux's USB autosuspend): with 50 ms a Bluetooth LE mouse made the
+    controller suspend at every pause, and after about 1000 cycles the Intel firmware stopped signalling remote wake
+    (the mouse stayed "connected" but dead until Bluetooth was toggled). `sudo sysctl debug.g15btidle=0` turns it off,
+    or sets another time in ms (then toggle Bluetooth).
+  - **Webcam and keyboard-light controller idle too (since 2026-11-22).** The webcam and the AW-ELC (keyboard light, USB
+    `187c:0551`) stayed 100 % powered: Apple's HID and UVC drivers never set a USB idle policy on them. `G15PM` (`UsbIdle`)
+    sets a 2 s idle policy on the webcam (Photo Booth still works) and, for the AW-ELC, a code-less personality in `G15Fan`
+    keeps Apple's HID driver off the interface so G15.app owns it through IOUSBHost (idle policy + SET/GET_REPORT on the
+    control pipe). Both now suspend fully when idle. The keyboard light turns off after 1 min and back on at a key press.
+    `sudo sysctl debug.g15usbidle=0` turns it off; `debug.g15usbidle_dev` is a device mask (1 Logitech receiver, 2 AW-ELC,
+    4 webcam; default 5). The Logitech receiver still never suspends (it sends reports all the time): use Bluetooth.
 - **iMessage and FaceTime** work (tested 2026-11-14).
 - **Input:** keyboard via VoodooPS2, touchpad via VoodooI2C in GPIO interrupt mode, keyboard backlight (AW-ELC), and the
   Fn keys F5 / F9 / F10 through G15.app.
@@ -152,24 +187,6 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   needs a WindowServer restart: NullMoth only creates the RTX output when a display is present, and WindowServer fixes its
   display pipes when it starts ([nullmoth#288](https://github.com/nullmoth/nvidia-macos-driver/issues/288), #581). The
   workaround (arm the output with NullMoth's sysctls, then restart WindowServer) is described in #288.
-- **RTX idle power:** solved since 2026-11-10 by `G15Fan` + `G15PM` (see "What works"). NullMoth's own RTD3/GC6 still
-  cannot cut power on this machine ([nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)).
-  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 when idle, saving about 12 W.
-  - With the RTX visible, the CPU package almost never reaches deep C-states.
-- **UHD hang: fixed on 2026-11-16 (`-wex-g15-noccs`).** The UHD hung (screen frozen, `gpuRestart`, WindowServer
-  watchdog) when Apple's ML frameworks ran compute on the GPU: opening PDFs in Preview (Live Text), `mediaanalysisd`,
-  `photoanalysisd`. The compute engine (CCS) and the render engine (RCS) ran in parallel, which Intel's TGL PRM Vol 14
-  forbids ("SVSM: Dual Context - Invalidate hang"); Linux never uses the CCS on this GPU. Apple turns it on from
-  `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
-  driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
-  also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The WhateverXe fork also keeps forcewake on every engine while it executes and
-  releases it as soon as the engine is idle (a still screen stays at about 1.2-1.7 W of package power). Each hang is
-  written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
-- **eDP Panel Self Refresh (on in this config).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
-  with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
-  WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
-  timed out" in the kernel log) and the first frame after a still screen could be late. The WindowServer freezes seen
-  with PSR in the first days were the hang above. Remove the boot-arg, or `sudo sysctl debug.g15psr=0`, to turn it off.
 - **Boot logo:** for a few frames, when the UHD takes over from the firmware (the moment the brightness drops), the
   Apple logo is drawn several times. It used to last about 0.9 s; the vblank fix above shortened it.
   [WhateverXe#131](https://github.com/b00t0x/WhateverXe/issues/131) explains the cause; its fix made it worse on this
@@ -276,9 +293,11 @@ Know what that means for your security.
   - WhateverGreen 1.7.2: used only by `config-install.plist`; the system config does not load it.
   - **My builds:**
     - `WhateverXe` (fork above).
-    - `G15Fan`: fans and profiles via Dell WMAX, RTX power cut in sleep and when idle (`RtxPm`), EC wake arming.
+    - `G15Fan`: fans and profiles via Dell WMAX, RTX power cut in sleep and when idle (`RtxPm`, or `G15RtxPower` called
+      by my NVRM build for GC6), EC wake arming.
     - `G15PM`: the XE-PM part of NootedGreen as its own Lilu plug-in (HWP, turbo, C-states, EPP), plus the RTX hooks
-      (`RtxLazy`, `RtxCalls`, `RtxDeny`) and Bluetooth USB idle suspend (`BtIdle`).
+      (`RtxLazy`, `RtxCalls`, `RtxDeny`) and Bluetooth USB idle suspend (`BtIdle`, plus `UsbIdle` for Logitech
+      receivers that go quiet; `sysctl debug.g15usbidle`, 0 turns it off).
     - `AudShim`: speakers, DMIC, headphone jack and headset microphone.
     - `IntelHybridCores`: P-core/E-core scheduling, `hw.perflevel` and Activity Monitor labels. Its own repository:
       [rodgod-rr/IntelHybridCores](https://github.com/rodgod-rr/IntelHybridCores) (source, write-up, measurements).
