@@ -30,33 +30,6 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     on top of it is also in [rodgod-rr/WhateverXe-Graphics `g15`](https://github.com/rodgod-rr/WhateverXe-Graphics/tree/g15).
 - **RTX 4050 for Metal/compute**, through [NullMoth](https://github.com/nullmoth/nvidia-macos-driver) 3.0. It runs
   alongside the UHD: Metal 3, about 4.9 TFLOPS.
-  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 while it is on and idle, saving about 12 W.
-- **RTX powered off when idle (since 2026-11-10).** NullMoth's own RTD3 (2.9 and 3.0) cannot cut power here (Apple's
-  `evaluateObject` only runs plain method names, and forcing it froze the system;
-  [nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)). Instead, the RTX goes through the
-  same path as system sleep, while the system stays awake:
-  - `G15Fan` asks IOPM to put NVRM and the HDMI audio function in power state 0. NullMoth then suspends the GPU with
-    its own sleep code.
-  - When the PCIe bridge reaches state 0, `G15Fan` calls `GOFF` (`PG01._OFF`). This needs the boot-arg
-    `-g15fan-rtxpm-corte`.
-  - Turning it back on calls `GONN`, and NullMoth resumes in about 1.2 s.
-  - `G15PM` hooks `NVAccel::newUserClient`, so an app that opens the RTX turns it back on first and waits for it.
-    macOS `systemstats` is refused while the RTX is off (it opened the RTX every ~10 min just to read stats).
-  - **Turn on only for real use (since 2026-11-11, `G15PM` `RtxLazy`).** Opening an app (Notes, TextEdit, Safari)
-    no longer wakes the RTX; the first real GPU call does (a windowed app waits about 2.7 s, VRAM intact).
-  - **"Idle" means no driver calls** (`G15PM` `RtxCalls`) and utilization under 2%, so the RTX can stop with apps
-    still open. A game that keeps drawing in the background keeps it on.
-  - In the Battery profile, `G15PM` `RtxDeny` refuses new RTX opens while it is off (the app falls back to the UHD).
-  - G15.app has an "RTX ( Desligada | Ligada | Automática )" selector (off / on / auto; with the GC6 build below it
-    becomes a statistics view, since the driver decides). Auto turns the RTX off after
-    30 s idle on battery or 5 min on AC, and back on when the charger is plugged in. The menu bar shows "RTX" in red
-    when it is off, with the temperature from the EC sensor.
-  - **"App na RTX" card in G15.app:** shows the app using the RTX, with a "Pausar em 2º plano" (pause in background)
-    button for that app only, until it quits. After 30 s in the background the app is frozen (SIGSTOP, its sound
-    muted), so the RTX can turn off; switching back to it resumes it at once and the RTX comes back in about 3 s.
-    Tested with Hollow Knight, including unplugging the charger while it was frozen.
-  - Idle on battery with the RTX off: about 1.3-1.7 W of CPU package with the screen on (PC8 75-80 %) and 1.5-1.7 W
-    with it off (PC10 ~70 %). With the RTX on, the package almost never leaves PC2/C0.
   - **RTX as an external GPU (since 2026-11-16, boot-arg `-g15egpu`).** `G15PM` marks the RTX as removable for Metal
     (`IOAccelDevice2::get_config` bit 13 and `Removable` on NVAccel; the kernel's own eGPU path is not used, so sleep is
     unaffected). Apps with "Prefer External GPU" in Finder > Get Info run on the RTX by themselves (Hollow Knight, the
@@ -67,24 +40,40 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     `docs/G15-LAZY-INIT.md`) answers the device properties from a saved snapshot and starts NVK on first real use:
     Safari, TextEdit or WhatsApp no longer wake it; Preview's Live Text and games do. Not in this EFI (it replaces
     NullMoth's `NVMTLDriver`).
-  - While it is off, the RTX cannot see an HDMI cable. Pick "Ligada" before connecting one.
-- **Optional, since 2026-11-22: GC6 run by NVIDIA's own driver (needs my NVRM build, not included).** With an NVRM built
-  from the [`g15-gc6` branch of my NullMoth fork](https://github.com/rodgod-rr/nvidia-macos-driver/tree/g15-gc6)
-  (`kexts/NVRM/nv_xnu_dynpm.cpp`), NVIDIA's resource manager decides when the RTX is idle and runs the whole
-  transition itself (RTD3 "OSPM" mode, no `_DSM` JT): it revokes the apps' mappings of the card
-  (`IOMemoryDescriptor::redirect`), enters GC6 (VRAM kept in self-refresh), D3hot, and `G15Fan` cuts power (`PG01._OFF`).
-  Any driver call or touch of a mapping brings it back synchronously in about 1.24 s, with VRAM intact. G15.app then
-  never stops the RTX itself: its RTX card swaps the off/on/auto selector for statistics read without waking the card
-  (core/memory/video load while awake, share of the time in GC6, number of wakes, how long the last one took and what
-  asked for it).
-  - Measured on battery with the RTX in GC6: 1.2-1.4 W package with the screen on (PC8 ~78 %), 1.5-1.6 W with it off
-    (PC10 ~72 %). Turning the screen on wakes the RTX without a visible stutter.
-  - A Logitech Lightspeed USB receiver (`046d:c539`) adds about 2 W on its own: it sends input reports all the time and
-    never suspends, so the CPU package stays in PC2. On battery, use the mouse over Bluetooth (the G603 is dual).
-  - Boot-args, only together with that NVRM: `nvrmdynpm=2 nvrmnvpcf=1
+  - `BOOST=0` in `/Library/GPUBundles/nvmtl/nvrm610.conf` lets it drop to P8 while it is on and idle, saving about 12 W.
+- **RTX powered off when idle.** Stock NullMoth's own RTD3 (2.9 and 3.0) cannot cut power here (Apple's
+  `evaluateObject` only runs plain method names, and forcing it froze the system;
+  [nullmoth#428](https://github.com/nullmoth/nvidia-macos-driver/issues/428)). There are two ways around it:
+  - **NVIDIA's own GC6 (since 2026-11-22, what I use; needs my NVRM build, not included).** With an NVRM built from the
+    [`g15-gc6` branch of my NullMoth fork](https://github.com/rodgod-rr/nvidia-macos-driver/tree/g15-gc6)
+    (`kexts/NVRM/nv_xnu_dynpm.cpp`), NVIDIA's resource manager decides when the RTX is idle and runs the whole
+    transition itself (RTD3 "OSPM" mode, no `_DSM` JT): it revokes the apps' mappings of the card
+    (`IOMemoryDescriptor::redirect`), enters GC6 (VRAM kept in self-refresh), D3hot, and `G15Fan` cuts power
+    (`PG01._OFF`). Any driver call or touch of a mapping brings it back synchronously in about 1.24 s, with VRAM intact;
+    the rest of the desktop does not stutter meanwhile, and turning the screen on wakes it without a visible pause.
+    G15.app never stops the RTX itself: its RTX card shows statistics read without waking the card (core/memory/video
+    load while awake, share of the time in GC6, number of wakes, how long the last one took and what asked for it).
+    Boot-args, only together with that NVRM: `nvrmdynpm=2 nvrmnvpcf=1
     nvregdwords=DynamicPowerManagement=3;DynamicPowerManagementVideoMemoryThreshold=0;PCIEPowerControl_8086a7190bf81028=39`.
     Do not add the `nvregdwords` with the stock NVRM: its `os_strtoul` is a stub, so every key there becomes 0.
-  - Write-up (Portuguese): `docs/RTX-GC6.md` in my main repository; findings for NullMoth are being reported upstream.
+    Write-up (Portuguese): `docs/RTX-GC6.md` in my main repository; findings for NullMoth are being reported upstream.
+  - **With stock NullMoth (since 2026-11-10): the RTX goes through the system sleep path while the system stays
+    awake.** `G15Fan` asks IOPM to put NVRM and the HDMI audio function in power state 0, NullMoth suspends the GPU with
+    its own sleep code, and when the PCIe bridge reaches state 0 `G15Fan` calls `GOFF` (`PG01._OFF`, boot-arg
+    `-g15fan-rtxpm-corte`); `GONN` brings it back and NullMoth resumes in about 1.2 s. `G15PM` turns it back on when an
+    app opens the RTX and waits for it (`NVAccel::newUserClient`), only at the first real GPU call (`RtxLazy`), counts
+    "idle" as no driver calls (`RtxCalls`) so it can stop with apps open, refuses `systemstats` while it is off, and in
+    the Battery profile refuses new RTX opens while it is off (`RtxDeny`). G15.app decides when: an
+    "RTX ( Desligada | Ligada | Automática )" selector, where Auto turns it off after 30 s idle on battery or 5 min on AC.
+  - **"App na RTX" card in G15.app (both ways):** shows the app using the RTX, with a "Pausar em 2º plano" (pause in
+    background) button for that app only, until it quits. After 30 s in the background the app is frozen (SIGSTOP, its
+    sound muted), so the RTX can turn off; switching back to it resumes it at once.
+  - **Measured on battery with the RTX powered off (both ways):** about 1.2-1.7 W of CPU package with the screen on
+    (PC8 ~75-80 %) and 1.5-1.7 W with it off (PC10 ~70 %). With the RTX on, the package almost never leaves PC2/C0.
+    A Logitech Lightspeed USB receiver (`046d:c539`) adds about 2 W on its own: it sends input reports all the time and
+    never suspends, so the package stays in PC2. On battery, use the mouse over Bluetooth (the G603 is dual).
+  - **HDMI:** a powered-off RTX cannot see a cable. With stock NullMoth, pick "Ligada" before connecting one; with the
+    GC6 build this is not tested yet.
 - **Sleep (Deep Idle / S0, since the firmware has no S3).** Sleep and wake work, and the panel comes back every time.
   - Tested with 5 RTC cycles in a row, idle sleep, lid-close sleep, and 1 h 44 min on battery.
   - Overnight on battery (5 h 15 min, lid closed): package in PC10 ~100% of the time, about 0.9-1.0 W (~2 %/h).
