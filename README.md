@@ -116,8 +116,8 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The
   WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle
   (a still screen stays at about 1.2-1.7 W of package power). Each hang is written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
-- **eDP Panel Self Refresh (on in this config, since 2026-11-14).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
-  with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
+- **eDP Panel Self Refresh (on in this config, since 2026-11-14).** The boot-arg `wexg15psr=3` turns on PSR1 for
+  the internal LG panel: with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
   WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
   timed out" in the kernel log) and the first frame after a still screen could be late. The WindowServer freezes seen
   with PSR in the first days were the hang above. Remove the boot-arg, or `sudo sysctl debug.g15psr=0`, to turn it off.
