@@ -47,14 +47,16 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   - **"Idle" means no driver calls** (`G15PM` `RtxCalls`) and utilization under 2%, so the RTX can stop with apps
     still open. A game that keeps drawing in the background keeps it on.
   - In the Battery profile, `G15PM` `RtxDeny` refuses new RTX opens while it is off (the app falls back to the UHD).
-  - G15.app has an "RTX ( Desligada | Ligada | Automática )" selector (off / on / auto). Auto turns the RTX off after
+  - G15.app has an "RTX ( Desligada | Ligada | Automática )" selector (off / on / auto; with the GC6 build below it
+    becomes a statistics view, since the driver decides). Auto turns the RTX off after
     30 s idle on battery or 5 min on AC, and back on when the charger is plugged in. The menu bar shows "RTX" in red
     when it is off, with the temperature from the EC sensor.
   - **"App na RTX" card in G15.app:** shows the app using the RTX, with a "Pausar em 2º plano" (pause in background)
     button for that app only, until it quits. After 30 s in the background the app is frozen (SIGSTOP, its sound
     muted), so the RTX can turn off; switching back to it resumes it at once and the RTX comes back in about 3 s.
     Tested with Hollow Knight, including unplugging the charger while it was frozen.
-  - Idle on battery: about 24-29 W, against about 34 W with the RTX on.
+  - Idle on battery with the RTX off: about 1.3-1.7 W of CPU package with the screen on (PC8 75-80 %) and 1.5-1.7 W
+    with it off (PC10 ~70 %). With the RTX on, the package almost never leaves PC2/C0.
   - **RTX as an external GPU (since 2026-11-16, boot-arg `-g15egpu`).** `G15PM` marks the RTX as removable for Metal
     (`IOAccelDevice2::get_config` bit 13 and `Removable` on NVAccel; the kernel's own eGPU path is not used, so sleep is
     unaffected). Apps with "Prefer External GPU" in Finder > Get Info run on the RTX by themselves (Hollow Knight, the
@@ -112,8 +114,13 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   `AppleIntelTGLGraphics`' `Info.plist` (`EnableMultiContext`); with `-wex-g15-noccs` the WhateverXe fork makes the
   driver read 0, so compute runs on the RCS as on Linux. No hang since. (Before that, the old two-byte Metal leak patch
   also caused restarts; Graphics 0.4.4 fixes the leak safely and the patch is gone from this repository.) The
-  WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle (a still screen stays at about 1.2-1.7 W of package power). Each hang is
-  written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
+  WhateverXe fork also keeps forcewake on every engine while it executes and releases it as soon as the engine is idle
+  (a still screen stays at about 1.2-1.7 W of package power). Each hang is written with per-engine registers to `/private/var/log/g15-uhd-hang-*.txt`; `wexg15unstick=31` tries to recover.
+- **eDP Panel Self Refresh (on in this config, since 2026-11-14).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
+  with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
+  WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
+  timed out" in the kernel log) and the first frame after a still screen could be late. The WindowServer freezes seen
+  with PSR in the first days were the hang above. Remove the boot-arg, or `sudo sysctl debug.g15psr=0`, to turn it off.
 - **Audio:** internal speakers with volume and mute, and the internal microphone (DMIC) with DeepFilterNet3 noise
   suppression. This is `AudShim` + the `XeSpeakers` HAL plug-in.
   - **Headphone jack (since 2026-11-14):** headphones switch automatically with the speakers ("Fones de ouvido"), and a
@@ -160,11 +167,6 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
   needs a WindowServer restart: NullMoth only creates the RTX output when a display is present, and WindowServer fixes its
   display pipes when it starts ([nullmoth#288](https://github.com/nullmoth/nvidia-macos-driver/issues/288), #581). The
   workaround (arm the output with NullMoth's sysctls, then restart WindowServer) is described in #288.
-- **eDP Panel Self Refresh (on in this config).** The boot-arg `wexg15psr=3` turns on PSR1 for the internal LG panel:
-  with a still screen the package drops from about 2.4 W to 1.5 W (PSR active 97% of the time). Since 2026-11-14 the
-  WhateverXe fork forces a PSR exit before each vblank wait: without it every wait timed out after 500 ms ("Wait for VBL
-  timed out" in the kernel log) and the first frame after a still screen could be late. The WindowServer freezes seen
-  with PSR in the first days were the hang above. Remove the boot-arg, or `sudo sysctl debug.g15psr=0`, to turn it off.
 - **Boot logo:** for a few frames, when the UHD takes over from the firmware (the moment the brightness drops), the
   Apple logo is drawn several times. It used to last about 0.9 s; the vblank fix above shortened it.
   [WhateverXe#131](https://github.com/b00t0x/WhateverXe/issues/131) explains the cause; its fix made it worse on this
