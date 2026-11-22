@@ -122,7 +122,10 @@ SSD and panel may differ, and the DSDT shipped here was dumped from my machine.
     stayed at PC2 (about +5 W). `G15PM` (`BtIdle`) sets the IOUSBHost idle policy on the Bluetooth interfaces and its IN
     pipes, and takes the idle `IntelBluetoothFirmware` driver out of the power tree (it blocked idle suspend). The port is
     now suspended about half the time and idle power with Bluetooth on is the same as with it off (about 2.2 W). Headsets,
-    mice and sleep work. `sudo sysctl debug.g15btidle=0` turns it off (then toggle Bluetooth).
+    mice and sleep work. The idle time is 2 s (as Linux's USB autosuspend): with 50 ms a Bluetooth LE mouse made the
+    controller suspend at every pause, and after about 1000 cycles the Intel firmware stopped signalling remote wake
+    (the mouse stayed "connected" but dead until Bluetooth was toggled). `sudo sysctl debug.g15btidle=0` turns it off,
+    or sets another time in ms (then toggle Bluetooth).
 - **iMessage and FaceTime** work (tested 2026-11-14).
 - **Input:** keyboard via VoodooPS2, touchpad via VoodooI2C in GPIO interrupt mode, keyboard backlight (AW-ELC), and the
   Fn keys F5 / F9 / F10 through G15.app.

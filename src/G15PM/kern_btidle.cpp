@@ -7,7 +7,11 @@
 //  fica em PC2 (+5 W). Aqui o IOUSBHostInterface::copyPipe e trocado (Lilu): quando o bluetoothd pega os pipes IN 0x81
 //  (eventos HCI) e 0x82 (ACL) da interface 0 de um BT Intel, liga a politica nos dois e na interface. O aparelho suspende
 //  e acorda sozinho (remote wake) quando tem dado. Como no Linux (btusb autosuspend), o risco e o firmware nao acordar.
-//  sysctl debug.g15btidle = ms da politica (padrao 50; 0 = nao liga). Vale na proxima vez que o BT ligar.
+//  sysctl debug.g15btidle = ms da politica (padrao 2000; 0 = nao liga). Vale na proxima vez que o BT ligar.
+//  (22/11) Padrao 50 -> 2000 ms (o do autosuspend do Linux): com um mouse BLE (G603) e 50 ms o controlador suspendia a
+//  cada pausa (centenas de ciclos por minuto) e depois de ~1000 o firmware do AX201 parou de pedir remote wake: a porta
+//  ficou suspensa e o mouse "conectado" sem funcionar. Com 2000 ms: 25 ciclos em 20 min de uso, sem travar
+//  (logs/macos/bt-g603-btidle2000-*.txt); parado, o BT continua suspenso a maior parte do tempo.
 //  Registro "G15BtIdle" = {gancho (1 ok, 2 simbolo, 3 rota), pipes ligados, interfaces ligadas, ultimo IOReturn do pipe,
 //  ultimo IOReturn da interface, ms}. -g15btidle-off desliga.
 #include <Headers/kern_api.hpp>
@@ -21,7 +25,7 @@
 static mach_vm_address_t gCpOrg = 0, gPipeIdle = 0, gIfIdle = 0;
 static void *cpHook(IOService *that, uint8_t address);
 static uint32_t gBi[7] {};   // [6] = IntelBluetoothFirmware tirados da arvore de energia (automatico)
-static int gBiMs = 50;
+static int gBiMs = 2000;
 static void biPublish() { gBi[5] = (uint32_t)gBiMs; IORegistryEntry::getRegistryRoot()->setProperty("G15BtIdle", gBi, sizeof(gBi)); }
 
 static uint32_t biNum(IORegistryEntry *e, const char *k) {
