@@ -10,11 +10,18 @@ Recuperação no Dell. O log `opencore-2026-11-22-102151.txt` registra o
 OpenCore `DBG-108-2026-09-23`, a substituição da DSDT de 653.360 bytes e
 `EXITBS:START`. A chegada à interface foi confirmada na tela.
 
-O pendrive `TAHOE` está com a `EFI-Live-Release` para repetir esse boot.
-As duas variantes usam o mesmo SMBIOS, as mesmas 11 tabelas ACPI e o
-mesmo mapa USB. A Release usa o menu gráfico OpenCanopy e mantém `-v`.
-O teste termina ao abrir a Recuperação do pendrive, identificada no menu
-de texto como `TAHOE (external) (dmg)`. [Perfil Release](../EFI-Live-Release/OC/config.plist)
+A `EFI-Live-Release` também abriu a Recuperação pelo menu gráfico
+OpenCanopy. Após o primeiro reinício, ela selecionou automaticamente
+`macOS Installer` no NVMe e a instalação prosseguiu pela interface
+gráfica. Após o reinício seguinte, o pendrive deixou de aparecer no
+F12 e o Dell voltou ao Windows. [Perfil Release](../EFI-Live-Release/OC/config.plist)
+
+No Windows, `TAHOE` montou como `H:` em FAT32. Os 171 arquivos da EFI
+coincidiram com a Release por SHA-256 e o `ocvalidate` 1.0.8 aceitou
+o plist. O DMG e o chunklist também mantiveram seus hashes. Os três
+novos arquivos de log da Release continham apenas zeros. O NVMe
+dedicado tinha uma partição EFI de 200 MiB e duas partições APFS.
+O ponto exato da instalação ainda depende de abrir o OpenCore novamente.
 
 ## As três máquinas
 
@@ -127,12 +134,16 @@ transporta o teclado separadamente do vídeo DisplayPort.
 
 ### 2. Instalação até o primeiro desktop
 
-- Na tentativa anterior, o NVMe de 512 GB tinha uma ESP de 200 MiB e duas
-  partições APFS de cerca de 256 GB. O disco foi limpo depois daquele
-  teste. Para a próxima instalação, identificar o NVMe dedicado na
-  Recuperação. Nos reinícios, usar o mesmo OpenCore USB e selecionar
-  **`macOS Installer`** enquanto essa entrada estiver presente. Depois,
-  selecionar o volume do sistema.
+- Na instalação atual, preservar as partições do NVMe e retomar pelo
+  mesmo OpenCore Release. Se o TAHOE sumir no F12, desligar completamente
+  o Dell e testar o pendrive em outra USB-A do notebook. Se persistir,
+  conferir `Enable USB Boot Support` e `Enable External USB Ports` em
+  `Integrated Devices` e `Fastboot = Thorough` em `Pre-boot Behavior`.
+  [Configuração UEFI do Dell G15 5530](https://www.dell.com/support/manuals/en-us/g-series-15-5530-laptop/dell-g15-5530-owners-manual/system-setup-options?guid=guid-a7c229f7-1e58-4726-b5f1-d0cfc670497f&lang=en-us)
+- No OpenCore, selecionar **`macOS Installer`** enquanto a entrada do
+  NVMe estiver presente. Quando houver apenas o volume do sistema como
+  opção do NVMe, selecionar esse volume e verificar se abre o Assistente
+  de Configuração.
 
 **Histórico do perfil `EFI/OC/config-install.plist`**
 

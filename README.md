@@ -3,9 +3,10 @@
 Este fork tem como alvo **i7-13650HX, Intel UHD 8086:A78B, RTX 3050 6 GB
 10DE:25EC, painel 120 Hz, Hybrid/Optimus e macOS Tahoe em NVMe dedicado**.
 
-Em 22/11/2026, a `EFI-Live-Debug` abriu a Recuperação gráfica do Tahoe no
-Dell com BIOS 1.37.0. O pendrive `TAHOE` está com a `EFI-Live-Release`
-para repetir o teste com a mesma DSDT e o mesmo mapa USB.
+Em 22/11/2026, as EFIs Live Debug e Release abriram a Recuperação do
+Tahoe no Dell com BIOS 1.37.0. A Release também iniciou o instalador
+no NVMe após o primeiro reinício. Para retomar o teste, o firmware
+precisa voltar a listar o pendrive `TAHOE` no menu F12.
 
 O [roteiro do Dell](docs/HARDWARE-LOCAL.md) compara a live do ASUS com a
 instalação de Rodrigo Rangel e cobre o caminho até o boot pelo SSD, a
