@@ -201,6 +201,16 @@ e inicia Windows pelo SSD dele. O USB ainda permite recuperar o Tahoe.
 
 ### 4. Aceleração, periféricos e energia
 
+O primeiro teste da Intel UHD A78B usa WhateverXe 0.8.3 Release,
+AMFIAnchor 0.1.2 e o instalador Graphics 0.4.4. A configuração está na
+worktree `codex/g15-intel-graphics`. No pendrive TAHOE, a EFI de teste e o
+instalador ficam em `G15-Intel`. A configuração passou no `ocvalidate`,
+e os arquivos do pendrive foram conferidos por SHA-256. O arquivo
+`G15-Intel/LEIA-ME.md` descreve como selecionar a EFI alternativa no F12
+e testar Metal. A sessão Windows observou vídeo Intel no USB-C traseiro.
+[WhateverXe 0.8.3](https://github.com/b00t0x/WhateverXe/tree/0.8.3) ·
+[WhateverXe Graphics 0.4.4](https://github.com/b00t0x/WhateverXe-Graphics/releases/tag/v0.4.4)
+
 Depois de confirmar que o boot é repetível, aproveitar as otimizações
 de Rodrigo Rangel uma por vez sobre a EFI Live validada. Testar cada função com as dependências
 que ela exige. Para vídeo, brilho e repouso, conferir a DSDT da BIOS
