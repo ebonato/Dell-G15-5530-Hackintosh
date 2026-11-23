@@ -42,11 +42,11 @@ printf '%s\n' 'Coletando o diagnóstico de vídeo. Aguarde a confirmação no Te
     done
 
     printf '\n=== Propriedades de inicialização do WhateverXe ===\n'
-    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux)[^"]*"'
+    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux|TGLEDP)[^"]*"'
 
     printf '\n=== Mensagens gráficas do boot atual ===\n'
     log show --last boot --style compact --info --debug \
-        --predicate 'sender == "WhateverXe" OR (process == "kernel" AND (eventMessage CONTAINS[c] "WhateverXe" OR eventMessage CONTAINS[c] "IntelAccelerator" OR eventMessage CONTAINS[c] "AppleIntelTGL"))' 2>&1 | tail -n 240
+        --predicate 'sender == "WhateverXe" OR (process == "kernel" AND (eventMessage CONTAINS[c] "WhateverXe" OR eventMessage CONTAINS[c] "IntelAccelerator" OR eventMessage CONTAINS[c] "AppleIntelTGL" OR eventMessage CONTAINS[c] "link training" OR eventMessage CONTAINS[c] "modeset"))' 2>&1 | tail -n 240
 } > "$temporary" 2>&1
 
 mv -f "$temporary" "$report" || exit 1

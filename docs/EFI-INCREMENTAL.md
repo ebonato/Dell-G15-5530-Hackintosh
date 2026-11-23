@@ -229,3 +229,53 @@ falha do painel de uma falha mais ampla na inicialização da Intel.
 Com o desktop acessível, rode `/bin/bash "/Volumes/TAHOE/G15-Intel/diagnostico-tahoe.sh"`.
 O [coletor](../tools/macos-g15-diagnostico.sh) grava `diagnostico-tahoe-video.txt`
 no pendrive ao lado do script. O USB também tem `config-antes-gfxrst.plist`.
+
+### Retorno ao vídeo básico após o teste de framebuffer
+
+Os dois boots com `gfxrst=1` ficaram com a tela preta, tanto com os
+monitores conectados como só com o painel interno. Os arquivos recentes
+de log do OpenCore no TAHOE continham apenas zeros.
+
+O `EFI/OC/config.plist` ativo do pendrive foi restaurado à
+EFI-Live-Release para recuperar o acesso ao Finder. O `ocvalidate`
+1.0.8 aceitou o plist e todos os 171 arquivos da Live Release conferiram
+por SHA-256. O teste incremental permanece em `EFI-Incremental` no
+repositório e em `G15-Intel/config-incremental-gfxrst.plist` no USB.
+O Graphics 0.4.4 oficial continua disponível no pendrive.
+
+Primeiro testar a Live Release com a BIOS no estado atual. Se a tela
+continuar preta, restaurar a opção de vídeo anteriormente alterada na
+BIOS e testar o mesmo perfil. O boot após o retorno à Live Release
+ainda precisa ser observado no Dell.
+
+### Comparação com o WhateverXe 0.8.3 Release em modo híbrido
+
+A primeira tentativa com o kext oficial chegou a vídeo básico antes da
+mudança de vídeo na BIOS. Depois de ativar o modo híbrido, os testes com
+tela preta usavam o fork do Rodrigo. O próximo teste da Release oficial
+deve ser feito com Hybrid Graphics/Advanced Optimus ativo e apenas com
+o painel interno, para comparar o caminho eDP.
+
+A EFI completa para essa comparação está em `G15-Intel/EFI-WEX-Oficial`
+no TAHOE. Ela reproduz o perfil de DVMT de `250eef2`, com o binário
+oficial 0.8.3 Release, `-igfxdvmt`, `AMFIAnchor` e Graphics 0.4.4. Esse
+perfil usa o modo padrão de reset de framebuffer e os argumentos do
+kext oficial. O `ocvalidate` 1.0.8 passou e os 176 arquivos foram
+conferidos por SHA-256. O pendrive inicia atualmente pela Live Release
+em `EFI/OC/config.plist`.
+
+O fork `bf35ea5` mantém o primeiro registro de portas externas duplicadas
+na VBT do G15. Na Release oficial, registros diferentes para uma mesma
+porta podem retornar `WhateverXeFirmwarePorts` com `Conflict`. A issue
+#132 descreve um caso distinto no mesmo modelo e GPU A78B, em que a
+Intel já estava inicializada e a fase 2 do treinamento eDP apagava o
+painel. A solução preservava o link treinado pelo firmware em uma build
+experimental do relator.
+[Comparação do parser VBT](https://github.com/rodgod-rr/WhateverXe/compare/f26a368...bf35ea5) ·
+[Issue 31](https://github.com/b00t0x/WhateverXe/issues/31) ·
+[Issue 132](https://github.com/b00t0x/WhateverXe/issues/132)
+
+Se o desktop abrir, o coletor registra `IntelAccelerator`, `WhateverXeFirmwarePorts`
+e mensagens de modeset e link training. Se só o painel apagar, um boot
+com o monitor USB-C fornece outra forma de obter o diagnóstico. O
+critério de sucesso é a Intel com Metal e o painel interno aceso.
