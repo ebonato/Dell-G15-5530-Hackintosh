@@ -304,3 +304,35 @@ validou a combinação em um G15 com RTX 4050 e HDMI conectado no boot.
 O teste do NullMoth deve incluir o cabo conectado desde a partida.
 [Tabela do instalador NullMoth 3.0](https://github.com/nullmoth/nvidia-macos-driver/blob/v3.0/package/install.sh) ·
 [HDMI no G15 do Rodrigo](../README.md#what-partly-works)
+
+### Conflito na VBT com o WhateverXe oficial
+
+O diagnóstico da Release oficial 0.8.3 no Tahoe 26.7.3 confirmou
+`org.b00t0x.WhateverXe`, AMFIAnchor (`InstallStatus=1`) e os kexts
+Intel TGL na lista do kernel. A A78B permaneceu com `IONDRVFramebuffer`,
+7 MB e sem instância de `IntelAccelerator` no IORegistry. O campo
+`WhateverXeFirmwarePorts` retornou estado **7 (`Conflict`)**, VBT 250,
+máscaras de portas 0x11 e `WhateverXeFirmwarePanel` com `valid=0`.
+A assinatura corresponde à duplicidade de portas documentada em
+outro G15 5530 A78B. O relatório do teste está em
+`G15-Intel/diagnostico-tahoe-oficial-vbt.txt` no pendrive.
+[Issue 31](https://github.com/b00t0x/WhateverXe/issues/31) ·
+[Parser oficial 0.8.3](https://github.com/b00t0x/WhateverXe/blob/0.8.3/WhateverXe/kern_vbt.hpp)
+
+O fork `bf35ea5` ignora registros duplicados de portas externas da
+VBT neste Dell. Como os testes anteriores com o fork e modo híbrido
+apagaram a tela, o próximo boot usa o mesmo binário e troca `gfxrst=1`
+por `-wex-g15-setmode-sleeponly`. O argumento reserva para a retomada
+a intervenção extra de energia do painel e do AUX A, deixando o
+modeset do boot seguir pelo caminho padrão do fork. A finalidade é
+testar a transição inicial, separada dos ajustes para repouso. A
+correção de preservação do link eDP relatada na issue 132 é distinta.
+[Código do fork](https://github.com/rodgod-rr/WhateverXe/blob/bf35ea5b8dfc594d8cd1297b3fc6c76811dccfb9/WhateverXe/kern_xe.cpp) ·
+[Issue 132](https://github.com/b00t0x/WhateverXe/issues/132)
+
+A EFI-Incremental e a EFI ativa no TAHOE usam esse perfil. O
+`ocvalidate` 1.0.8 passou nos dois plists e os 176 arquivos ativos
+conferiram por SHA-256. No próximo boot, verificar se a VBT passa a
+`Valid`, se o `IntelAccelerator` tem uma instância e se o painel
+apresenta Metal. Se o painel apagar, tentar o monitor USB-C para
+coletar o IORegistry sem envolver a RTX no HDMI direto.

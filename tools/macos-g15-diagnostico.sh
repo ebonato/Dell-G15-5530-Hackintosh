@@ -42,7 +42,7 @@ printf '%s\n' 'Coletando o diagnóstico de vídeo. Aguarde a confirmação no Te
     done
 
     printf '\n=== Propriedades de inicialização do WhateverXe ===\n'
-    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux|TGLEDP)[^"]*"'
+    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux|G15ADLSSetMode|TGLEDP)[^"]*"'
 
     printf '\n=== Mensagens gráficas do boot atual ===\n'
     log show --last boot --style compact --info --debug \
