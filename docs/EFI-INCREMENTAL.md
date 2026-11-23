@@ -123,3 +123,81 @@ Em `AMFIAnchor`, conferir `InstallStatus = 1` e `LoadedAnchors` com
 `org.b00t0x.AMFIAnchorInjector`. A presença de um kext na lista confirma
 que foi carregado. O resultado de Metal precisa ser conferido em
 `SPDisplaysDataType`. [Validação da âncora](https://github.com/b00t0x/AMFIAnchor/tree/0.1.2#install-with-opencore)
+
+### Terceiro teste com o WhateverXe do Rodrigo Rangel
+
+O pendrive TAHOE e a EFI-Incremental receberam o `WhateverXe.kext` de
+`EFI/OC/Kexts` do upstream `3da8474`, que corresponde à revisão
+`bf35ea5` de `g15-deep-idle` e carrega a identificação
+`DBG-083-2026-11-22`. A entrada do OpenCore continua a mesma, inclusive
+a ordem após Lilu e os limites Darwin 25.x. O executável tem SHA-256
+`c95b5a1af29c02fe48f260171dd2daacdc6d88b2cc5a9095d6094153a3a3234e`.
+[Revisão no upstream](https://github.com/rodgod-rr/Dell-G15-5530-Hackintosh/commit/3da847445e3a0d9befc9857b2517615b4db18b4b) ·
+[Código do kext](https://github.com/rodgod-rr/WhateverXe/tree/bf35ea5b8dfc594d8cd1297b3fc6c76811dccfb9)
+
+O perfil mantém Lilu 1.7.2, AMFIAnchor 0.1.2, seu injector, AMFI ativa e
+SIP `03080000`. WhateverGreen e AMFIPass estão fora do carregamento. Esse
+é o caminho de assinatura indicado pelo b00t0x e pelo README da revisão
+`bf35ea5` para o Graphics não modificado. O Graphics oficial 0.4.4 no
+pendrive coincide com o SHA-256 publicado. A branch `g15` do Rodrigo, na
+revisão `f1d112a`, usa os mesmos payloads e contém patches
+pós-instalação com assinatura ad hoc. A confirmação do recibo, da âncora
+e dos kexts carregados depende de uma sessão no Tahoe.
+[Instalação do WhateverXe](https://github.com/b00t0x/WhateverXe#installation) ·
+[Graphics 0.4.4](https://github.com/b00t0x/WhateverXe-Graphics/releases/tag/v0.4.4) ·
+[Camada pós-instalação do Rodrigo](https://github.com/rodgod-rr/WhateverXe-Graphics/blob/f1d112a0b87ba34ea5caa63a8ffb16a88d3aaa8a/g15/README.md)
+
+#### Argumentos por etapa
+
+| Momento | Argumentos do upstream | Aplicação |
+|---|---|---|
+| Já presentes antes da troca | `keepsyms=1`, `debug=0x100`, `-allow3d`, `-disablegfxfirmware`, `-igfxdvmt`, `nvfb=1`, `nvaccel=1`, `nvfbheads=4` | Os dois primeiros ajudam a diagnosticar panics. Os três seguintes configuram a iGPU e o caminho de DVMT. Os três `nv*` são herdados da Live e se aplicam à etapa do driver da RTX. |
+| Neste teste | `-wex-g15-noccs`, `-wexdbg` | Desabilita o uso do motor de compute CCS em favor do RCS, conforme a correção do Rodrigo para travamentos da UHD. O segundo ativa mensagens da build Debug. |
+| Inicialização do painel, se necessário | `gfxrst=1` | Força o modo de reset do framebuffer. Testar sozinho se o driver carregar e o painel falhar no handoff. |
+| Brilho, depois de Metal | `wexblmin=4900`, `-wex-blmin=4900` | `wexblmin` define o piso do PWM e já tem 4900 como padrão nessa revisão. A grafia com hífens não aparece no código inspecionado. |
+| Painel e estabilidade, depois de Metal | `wexg15psr=3`, `wexg15unstick=31`, `-wex-g15-gsync`, `-wex-g15-ccsreset-off` | PSR1, tentativas de recuperar motores travados e ajustes do reset da Intel. Testar conforme o sintoma e em rodadas separadas. |
+| Diagnóstico sob demanda | `msgbuf=4194304`, `-g15diag`, `IGLogLevel=3`, `acpi=0xC` | Buffer maior, diagnósticos do G15, verbosidade de gráficos Intel e eventos ACPI. Usar conforme a investigação. |
+| Energia, CPU e RTX | `-g15pm`, `hcmode=4`, `-g15egpu`, `-g15fan-rtxpm-corte` | Dependem de G15PM, IntelHybridCores ou G15Fan. Validar CPU e energia em separado. As opções da RTX vêm depois do NullMoth e da validação da RTX 3050 e do HDMI. |
+| NVMe | `-nvmefaspm` | Força ASPM L1 globalmente. NVMeFix já está habilitado no plist. Teste separado após estabilizar o boot. [NVMeFix](https://github.com/acidanthera/NVMeFix#configuration) |
+| Patches pós-instalação com assinatura ad hoc | `amfi_get_out_of_my_way=1` | A variante do Rodrigo pede essa opção quando aplica sua camada ad hoc. O teste atual carrega o Graphics oficial pela cadeia do AMFIAnchor. |
+
+O perfil também conserva `-v` e `-nvkmsnosmooth`, vindos da Live.
+[Argumentos do Rodrigo](../README.md#boot-args-of-the-system-config)
+
+#### ACPI para as próximas etapas
+
+| Tabela | Situação neste Dell |
+|---|---|
+| `DSDT.aml`, `XOSI`, `PNLF` | A DSDT da BIOS 1.0 de Rodrigo difere da 1.37.0 local. A incremental usa a DSDT própria com RP25, HPET e redirecionamentos de OSI, mais as SSDTs locais XOSI e PNLF. Ambas as PNLF têm UID 19. Comparar a PNLF de Rodrigo sob GFX0 e a integração com BrightnessKeys se o brilho falhar depois de Metal. |
+| `AWAC`, `EC-USBX`, `PLUG-ALT` | Já cobertos por AWAC, EC, USBX e PLUG-ALT locais. A tabela combinada de Rodrigo duplicaria os dispositivos EC e USBX. |
+| `DeepIdle` e `LIDWAKE` | Candidatas para repouso S0. As tabelas adicionam LPS0/LXEN e PRW0 na tampa. A tampa existe na DSDT local. Conferir o GPE do EC e a definição condicional de _S3 antes de aplicar ao perfil de repouso. |
+| `PS2K-RMCF` | O caminho PS2K existe na BIOS 1.37.0. A tabela mapeia o scancode de Print Screen para F13 no VoodooPS2, para uso do G15.app. |
+| `BTRK` | BTRK e GBTR existem na DSDT local. O dispositivo AMWW vem da SSDT1 nativa. Candidata para reset do Bluetooth sob controle do G15Fan, após validar Bluetooth e wake. |
+| `RTXKEXT` | AMWW, PEG1.PG01 e PEG1.PEGP.GSTA estão no conjunto 1.37.0. Validar o comportamento das transições com o binário da RTX 3050, seu HDMI e a versão do G15Fan antes de adicionar GOFF/GONN. |
+
+A comparação foi feita com o dump SSDTTime 1.37.0 e o iASL 20251212. O
+teste do WhateverXe roda com o ACPI da incremental. [Evidências ACPI](../acpi-native/README.md) ·
+[Fontes das SSDTs do Rodrigo](../acpi-src)
+
+#### Alcance da issue 81
+
+A discussão começou com travamentos no pós-processamento de vídeo em
+Tiger Lake. Rodrigo reproduziu o caso no Dell i5-13450HX com A78B, Tahoe
+26.7.2, kext 0.8.0 modificado e Graphics 0.4.0 modificado. Ao retirar
+dois formatos da lista de saída do processamento de vídeo, as prévias
+da App Store, o TV e o protetor de tela passaram a funcionar no teste.
+H.264 e HEVC por hardware continuaram disponíveis. O relato confirma
+que a A78B já estava acelerada naquela combinação e descreve uma
+correção de reprodução de vídeo, posterior à inicialização de Metal.
+O Graphics 0.4.4 traz correções próprias de conversão e vazamento. Os
+patches VA e stencil da camada G15 têm objetivos adicionais e dependem
+dos sintomas observados depois da aceleração.
+[Relato na issue 81](https://github.com/b00t0x/WhateverXe/issues/81) ·
+[Notas do Graphics 0.4.4](https://github.com/b00t0x/WhateverXe-Graphics/releases/tag/v0.4.4)
+
+O `ocvalidate` 1.0.8 passou nos dois plists e os 176 arquivos da EFI
+ativa coincidiram por SHA-256. No próximo boot a frio, use
+`F12 > TAHOE > G15`, com o Graphics 0.4.4 já instalado. Confira Metal e
+o painel interno. Se ainda aparecer vídeo básico, use as verificações
+da seção anterior e confira `WhateverXePhysicalGGC` no IORegistry para
+investigar o DVMT.
