@@ -263,6 +263,20 @@ pelo Windows na BIOS 1.37.0. Após alterar a BIOS ou suas configurações,
 compare um novo dump antes de reutilizar esta DSDT, pois a tabela
 contém endereços de memória informados pelo firmware.
 
+### Aviso ACPI no primeiro boot do Tahoe instalado
+
+Na foto de 22/11/2026, o kernel registra `AE_NOT_FOUND` ao procurar
+`\_SB.PC00.RP25.PXSX` enquanto executa AML associado a
+`\_SB.PC00.RP24.PXSX`. A imagem também mostra o fim da configuração PCI
+e, depois, avisos de reset e inicialização do AppleNVMe. O boot seguinte
+com a mesma Release chegou ao Finder.
+
+A DSDT da Release declara `PXSX` dentro de `RP25` e contém extensões
+condicionais desse escopo. No teste com as 24 tabelas AML da composição
+Live, o AcpiExec 20160930 resolveu `RP24`, `RP25` e os dois nós `PXSX`,
+com e sem `-em`. A simulação usa o dump estático. A relação entre os
+avisos ACPI, os resets do AppleNVMe e a parada no boot segue em aberto.
+
 ## Patches do SSDTTime avaliados na BIOS 1.37.0
 
 O perfil de instalação já cobre FakeEC Laptop e USBX com `SSDT-EC-USBX`,

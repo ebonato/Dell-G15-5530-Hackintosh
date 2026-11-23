@@ -5,8 +5,12 @@ seu próprio SSD, tela interna acelerada a 120 Hz, rede, áudio, teclado,
 touchpad, USB e repouso validados no Dell. A RTX 3050 e o HDMI têm uma etapa
 própria de ativação e teste.
 
-**Teste de 22/11/2026.** A `EFI-Live-Debug` chegou à interface da
-Recuperação no Dell. O log `opencore-2026-11-22-102151.txt` registra o
+**Estado em 22/11/2026.** O Tahoe 26.7.3 iniciou até o Finder no volume
+`G15` do NVMe dedicado com a `EFI-Live-Release` no pendrive. A tela
+Sobre Este Mac mostrou `Display 8 MB`, compatível com vídeo básico.
+Metal e boot independente pelo SSD ainda precisam de teste.
+
+A `EFI-Live-Debug` chegou à interface da Recuperação no Dell. O log `opencore-2026-11-22-102151.txt` registra o
 OpenCore `DBG-108-2026-09-23`, a substituição da DSDT de 653.360 bytes e
 `EXITBS:START`. A chegada à interface foi confirmada na tela.
 
@@ -21,7 +25,19 @@ coincidiram com a Release por SHA-256 e o `ocvalidate` 1.0.8 aceitou
 o plist. O DMG e o chunklist também mantiveram seus hashes. Os três
 novos arquivos de log da Release continham apenas zeros. O NVMe
 dedicado tinha uma partição EFI de 200 MiB e duas partições APFS.
-O ponto exato da instalação ainda depende de abrir o OpenCore novamente.
+Nos reinícios seguintes, o F12 voltou a permitir iniciar pelo pendrive.
+A instalação prosseguiu selecionando `macOS Installer`, até a entrada
+dar lugar a `G15` no OpenCore. Houve dois congelamentos no Assistente de
+Configuração, na lista de dispositivos da Conta Apple e na etapa do
+tema escuro, seguidos de desligamentos pelo botão. Outro boot mostrou
+`AE_NOT_FOUND` em `RP25.PXSX` e mensagens do AppleNVMe. O boot seguinte
+chegou ao desktop. A origem dos congelamentos segue em aberto.
+[Registro do erro durante o boot](../acpi-native/README.md#aviso-acpi-no-primeiro-boot-do-tahoe-instalado)
+
+Depois desse boot, os 171 arquivos da EFI no pendrive ainda coincidiam
+com os do repositório. As quatro entradas mais recentes, de `200932` a
+`204535` no nome de arquivo, foram acrescentadas aos logs já observados.
+Os arquivos dessa série têm 256 KiB e contêm apenas zeros.
 
 ## As três máquinas
 
@@ -134,8 +150,7 @@ transporta o teclado separadamente do vídeo DisplayPort.
 
 ### 2. Instalação até o primeiro desktop
 
-- Na instalação atual, preservar as partições do NVMe e retomar pelo
-  mesmo OpenCore Release. Se o TAHOE sumir no F12, desligar completamente
+- Para instalações futuras, se o TAHOE sumir no F12, desligar completamente
   o Dell e testar o pendrive em outra USB-A do notebook. Se persistir,
   conferir `Enable USB Boot Support` e `Enable External USB Ports` em
   `Integrated Devices` e `Fastboot = Thorough` em `Pre-boot Behavior`.
@@ -166,28 +181,28 @@ transporta o teclado separadamente do vídeo DisplayPort.
   EFIs Live que estamos testando usam `true` e `0`, respectivamente.
   [Manual do OpenCore 1.0.8](https://github.com/acidanthera/OpenCorePkg/blob/1.0.8/Docs/Configuration.tex#L1675-L1733)
 
-**Concluída quando:** o Assistente de Configuração termina, surge o desktop e
-o volume instalado volta a iniciar pelo USB. A porcentagem e os minutos
-estimados são indicadores de progresso. O instalador pode reiniciar várias
-vezes. Antes de instalar, conferir entrada, USB, rede e a identificação
-do NVMe dedicado na Recuperação. O Windows está no Micron 2550, com EFI própria.
-[Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
+**Primeiro desktop confirmado.** O Dell chegou ao Finder iniciando
+`G15` pelo OpenCore USB. Em instalações futuras, o instalador pode
+reiniciar várias vezes. [Fluxo de instalação da Apple](https://support.apple.com/pt-br/102655)
 
 ### 3. Perfil de sistema e boot independente pelo SSD
 
-1. Usar como referência a EFI Live que chegar ao login do sistema
-   instalado. Confirmar um novo boot pelo pendrive com o mesmo SMBIOS.
-2. Identificar a partição EFI do NVMe dedicado ao macOS e copiar a EFI
-   validada. Iniciar pelo F12 sem o pendrive e testar o Windows pelo
-   Windows Boot Manager. A EFI do pendrive serve para recuperação.
+1. Usar a EFI-Live-Release que abriu o desktop como referência. Conferir
+   um novo boot a frio e um reinício normal pelo pendrive antes de
+   testar os primeiros ajustes. Depois dos desligamentos forçados,
+   conferir o APFS do NVMe dedicado pelo Reparador da Recuperação.
+   [Reparador do Utilitário de Disco](https://support.apple.com/pt-br/102611)
+2. Copiar a EFI validada para a partição EFI do NVMe do macOS. Iniciar
+   pelo F12 sem o pendrive e testar o Windows pelo Windows Boot Manager.
+   A EFI do pendrive serve para recuperação.
 
 **Concluída quando:** o Dell inicia Tahoe pelo SSD com o pendrive removido
 e inicia Windows pelo SSD dele. O USB ainda permite recuperar o Tahoe.
 
 ### 4. Aceleração, periféricos e energia
 
-Depois do primeiro login, aproveitar as otimizações de Rodrigo Rangel uma
-por vez sobre a EFI Live validada. Testar cada função com as dependências
+Depois de confirmar que o boot é repetível, aproveitar as otimizações
+de Rodrigo Rangel uma por vez sobre a EFI Live validada. Testar cada função com as dependências
 que ela exige. Para vídeo, brilho e repouso, conferir a DSDT da BIOS
 1.37.0 e a RTX 3050 do nosso Dell antes de portar ajustes do equipamento dele.
 
