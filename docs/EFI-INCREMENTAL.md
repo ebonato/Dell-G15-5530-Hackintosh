@@ -336,3 +336,41 @@ conferiram por SHA-256. No próximo boot, verificar se a VBT passa a
 `Valid`, se o `IntelAccelerator` tem uma instância e se o painel
 apresenta Metal. Se o painel apagar, tentar o monitor USB-C para
 coletar o IORegistry sem envolver a RTX no HDMI direto.
+
+### Retorno à Live Release após a tela preta
+
+O teste com o fork `bf35ea5` e `-wex-g15-setmode-sleeponly` voltou a
+falhar. Os oito logs mais recentes do OpenCore tinham 256 KiB de bytes
+nulos. Uma foto mostra o `launchd` tentando iniciar `corerepaird` e
+registrando a ausência do executável. Outra mostra
+`com.apple.MobileSoftwareUpdate` concluindo a reversão do volume
+`G15` a um snapshot `com.apple.os.update-*`. As fotos registram
+atividade do macOS após o boot inicial e deixam em aberto a causa
+da perda de vídeo. A última coleta disponível veio da Release oficial
+no Tahoe 26.7.3 (`25G342`).
+
+Nesse boot anterior, o IORegistry mostra que o WhateverXe selecionou
+automaticamente a PCI Intel `8086:A78B` revisão `04` com o backend
+`ADLSSmall`. Um override `device-id` com Data `8BA70000` selecionaria
+o mesmo perfil. O conflito documentado está na validação da VBT.
+[Seleção de GPU](https://github.com/rodgod-rr/WhateverXe/blob/bf35ea5b8dfc594d8cd1297b3fc6c76811dccfb9/docs/device-selection.md)
+
+O binário testado confere por SHA-256 com o publicado por Rodrigo em
+`3da8474`. O commit atualizou o binário, o Info.plist e o README. O
+config dele ainda habilita AMFIPass-Mod e usa a flag de AMFI e o SIP
+da camada ad hoc. A EFI-Incremental segue o perfil da release oficial
+0.8.3, com AMFI do macOS ativa, AMFIAnchor 0.1.2 e seu injector.
+No último boot com a Release oficial, o `InstallStatus=1` confirmou
+a instalação da âncora e os kexts TGL estavam na lista do kernel.
+[Commit da EFI do Rodrigo](https://github.com/rodgod-rr/Dell-G15-5530-Hackintosh/commit/3da847445e3a0d9befc9857b2517615b4db18b4b) ·
+[Instalação do WhateverXe 0.8.3](https://github.com/b00t0x/WhateverXe/tree/0.8.3#installation)
+
+O pendrive voltou ao `config-live-release.plist` para testar o boot
+do volume G15 com vídeo básico. O perfil da tentativa está em
+`G15-Intel/config-incremental-setmode-sleeponly.plist` no pendrive e
+em `EFI-Incremental/OC/config.plist` no repositório. O coletor inclui
+histórico do Software Update, snapshots APFS e mensagens do instalador.
+Se a Live Release voltar a abrir o Finder, a próxima investigação do
+fork é obter o log do eDP e verificar se o treinamento do link
+reproduz o caso descrito na issue 132.
+[Issue 132](https://github.com/b00t0x/WhateverXe/issues/132)

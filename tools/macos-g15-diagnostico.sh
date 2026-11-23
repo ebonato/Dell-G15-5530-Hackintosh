@@ -20,6 +20,14 @@ printf '%s\n' 'Coletando o diagnóstico de vídeo. Aguarde a confirmação no Te
     sysctl -n kern.bootargs
     pkgutil --pkg-info org.b00t0x.WhateverXe.Tahoe
 
+    printf '\n=== Histórico de atualizações e snapshots do sistema ===\n'
+    softwareupdate --history
+    diskutil apfs listSnapshots /
+    if [ -r /var/log/install.log ]; then
+        printf '\n=== Mensagens recentes do instalador do macOS ===\n'
+        grep -Ei 'MobileSoftwareUpdate|OSInstaller|rollback|revert(ing)?.*snapshot' /var/log/install.log | tail -n 60
+    fi
+
     printf '\n=== Âncora de assinatura ===\n'
     ioreg -r -c AMFIAnchor -l -w 0
 
