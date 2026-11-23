@@ -261,7 +261,7 @@ no TAHOE. Ela reproduz o perfil de DVMT de `250eef2`, com o binário
 oficial 0.8.3 Release, `-igfxdvmt`, `AMFIAnchor` e Graphics 0.4.4. Esse
 perfil usa o modo padrão de reset de framebuffer e os argumentos do
 kext oficial. O `ocvalidate` 1.0.8 passou e os 176 arquivos foram
-conferidos por SHA-256. O pendrive inicia atualmente pela Live Release
+conferidos por SHA-256. Na preparação, o pendrive ainda iniciava pela Live Release
 em `EFI/OC/config.plist`.
 
 O fork `bf35ea5` mantém o primeiro registro de portas externas duplicadas
@@ -279,3 +279,28 @@ Se o desktop abrir, o coletor registra `IntelAccelerator`, `WhateverXeFirmwarePo
 e mensagens de modeset e link training. Se só o painel apagar, um boot
 com o monitor USB-C fornece outra forma de obter o diagnóstico. O
 critério de sucesso é a Intel com Metal e o painel interno aceso.
+
+### Vídeo básico confirmado na Intel e perfil oficial ativado
+
+O diagnóstico da Live Release no Tahoe 26.7.3 (25G342) registrou a
+A78B/GFX0 como GPU da tela principal, com 7 MB e `IONDRVFramebuffer`.
+A RTX 3050 6 GB `10DE:25EC` também foi enumerada, sem driver associado.
+O recibo do Graphics confirma a versão 0.4.4. A Live Release deixa o
+WhateverXe fora do `Kernel > Add`, por isso este boot serve como
+referência de vídeo básico em modo híbrido.
+
+O perfil oficial preparado acima passou a ser o ativo em `EFI/OC/config.plist`
+no TAHOE. O kext foi trocado pelo Release do b00t0x. A Live Release
+pode ser restaurada com `G15-Intel/config-live-release.plist`. Os 176
+arquivos ativos conferiram por SHA-256 e o `ocvalidate` 1.0.8 passou.
+O teste de Metal e do painel interno ainda precisa de boot no Dell.
+
+O painel interno usa a UHD no modo híbrido. O HDMI direto está ligado
+à RTX conforme o mapeamento no Windows. Para ter aceleração nos dois,
+a combinação a testar é WhateverXe + Graphics na Intel e NullMoth na
+RTX. A tabela da release 3.0 contém `25EC`, mas ainda falta validar o
+HDMI e a coexistência dos dois drivers nesta variante do Dell. Rodrigo
+validou a combinação em um G15 com RTX 4050 e HDMI conectado no boot.
+O teste do NullMoth deve incluir o cabo conectado desde a partida.
+[Tabela do instalador NullMoth 3.0](https://github.com/nullmoth/nvidia-macos-driver/blob/v3.0/package/install.sh) ·
+[HDMI no G15 do Rodrigo](../README.md#what-partly-works)
