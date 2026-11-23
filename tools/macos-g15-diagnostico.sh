@@ -50,7 +50,15 @@ printf '%s\n' 'Coletando o diagnóstico de vídeo. Aguarde a confirmação no Te
     done
 
     printf '\n=== Propriedades de inicialização do WhateverXe ===\n'
-    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux|G15ADLSSetMode|TGLEDP)[^"]*"'
+    ioreg -p IOService -l -w 0 | grep -E '"(WhateverXe|WEX|G15Mux|G15ADLSSetMode|G15ADLSCDClockFix|G15NoCCS|TGLEDP)[^"]*"'
+
+    printf '\n=== Buffer de mensagens gráficas do kernel ===\n'
+    if kernel_messages=$(dmesg 2>&1); then
+        printf '%s\n' "$kernel_messages" | grep -Ei 'WhateverXe|IntelAccelerator|AppleIntelTGL|link.training|modeset|G15ADLS' | tail -n 240
+    else
+        printf '%s\n' "$kernel_messages"
+    fi
+
 
     printf '\n=== Mensagens gráficas do boot atual ===\n'
     log show --last boot --style compact --info --debug \

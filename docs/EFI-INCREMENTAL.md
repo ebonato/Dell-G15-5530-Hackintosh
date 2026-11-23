@@ -32,7 +32,7 @@ repouso e dos demais patches específicos do fork.
 | Onde | Mudança | Motivo |
 | --- | --- | --- |
 | `OC/Kexts` e `Kernel > Add` | Adicionados `AMFIAnchor.kext` 0.1.2 Release, `AMFIAnchorInjector.kext` da mesma tag e `WhateverXe.kext` 0.8.3 Release, nessa ordem após Lilu. As três entradas são x86_64 e limitadas ao Darwin 25.x do Tahoe. | Lilu carrega os complementos. O injector fornece a âncora do certificado usado pelo projeto Graphics. O WhateverXe adapta o driver à UHD A78B. |
-| `Kernel > Add` | `AMFIPass.kext` passou para desabilitado. | A configuração oficial do WhateverXe 0.8.3 usa AMFIAnchor e seu injector, com AMFI ativa. |
+| `Kernel > Add` | `AMFIPass.kext` passou para desabilitado. | O AMFIPass comum 1.4.1 é opcional para outros patches do OCLP. O Graphics oficial usa AMFI ativa, AMFIAnchor e seu injector. |
 | `Kernel > Add` | `AirportRTW.kext` passou para desabilitado. | É o driver Wi-Fi de placas Realtek RTW88/89 e sua documentação usa AMFIPass. O Dell tem a Intel `8086:7A70`. Para essa placa, o perfil usa `AirportItlwm.kext`. |
 | `NVRAM > Add > boot-args` | Acrescentados `-allow3d` e `-disablegfxfirmware`. | O primeiro habilita o caminho de renderização 3D. O segundo evita o caminho de carregamento de firmware gráfico do driver Apple, associado ao GuC, e seleciona o caminho suportado pelo WhateverXe. Aplica-se na inicialização do macOS. |
 | `NVRAM > Add > boot-args` | Removidos `amfi_get_out_of_my_way=0x1`, `amfi=0x80` e `ipc_control_port_options=0`. | Retira os relaxamentos usados pelo perfil anterior. A assinatura dos componentes Graphics é tratada pela nova cadeia de confiança. |
@@ -374,3 +374,28 @@ Se a Live Release voltar a abrir o Finder, a próxima investigação do
 fork é obter o log do eDP e verificar se o treinamento do link
 reproduz o caso descrito na issue 132.
 [Issue 132](https://github.com/b00t0x/WhateverXe/issues/132)
+
+### Teste de Metal com monitor USB-C
+
+O boot pela Live Release já confirmou vídeo básico. O próximo teste
+usa a EFI-Incremental com WhateverXe do Rodrigo e o Graphics 0.4.4
+já instalado. Conecte o monitor USB-C antes do boot, com o HDMI
+direto desconectado e o modo híbrido ativo. O mapeamento no Windows
+identificou o USB-C na Intel. No Finder, confirme `IntelAccelerator`
+no IORegistry e Metal em Gráficos/Monitores. Se a aceleração funcionar
+no USB-C e o painel continuar escuro, colete o estado do modeset e
+do treinamento do link eDP para comparar com a issue 132.
+
+O mesmo plist do teste anterior ganhou `msgbuf=4194304`, que aumenta
+o buffer de mensagens do kernel, e `IGLogLevel=3`, que amplia o log
+Intel. O coletor registra o buffer quando acessível, além do log
+unificado e das propriedades `G15ADLSSetMode*` e `G15ADLSCDClockFix*`.
+[Argumentos de diagnóstico do Rodrigo](../README.md#boot-args-of-the-system-config) ·
+[Falha de treinamento eDP na A78B](https://github.com/b00t0x/WhateverXe/issues/132)
+
+O `AMFIPass.kext` incluído na EFI-Incremental é o comum 1.4.1. A
+documentação do AMFIAnchor permite carregá-lo após o injector se
+houver outros patches do OCLP. Para esse uso no Tahoe, o 1.4.1
+comum também exige `-amfipassbeta`. O teste gráfico usa AMFI ativa e
+a âncora do Graphics, já confirmada no diagnóstico oficial.
+[Instalação do AMFIAnchor 0.1.2](https://github.com/b00t0x/AMFIAnchor/tree/0.1.2#install-with-opencore)
