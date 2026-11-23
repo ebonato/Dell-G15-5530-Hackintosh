@@ -201,3 +201,31 @@ ativa coincidiram por SHA-256. No próximo boot a frio, use
 o painel interno. Se ainda aparecer vídeo básico, use as verificações
 da seção anterior e confira `WhateverXePhysicalGGC` no IORegistry para
 investigar o DVMT.
+
+### Tela preta após ativar o gráfico híbrido
+
+O primeiro relatório de execução no Tahoe 26.7.3 (25G342) confirmou
+Graphics 0.4.4, WhateverXe 0.8.3, AMFIAnchor com `InstallStatus=1`,
+o injector e os kexts Intel TGL carregados. A tela principal apareceu
+na NVIDIA `10DE:25EC`, com 8 MB e sem driver associado. A presença dos
+kexts no kernel confirma o carregamento. O vínculo do acelerador
+com a A78B fica por conferir no IORegistry.
+
+O usuário ativou na BIOS uma opção de comutação gráfica, compatível
+com `Display > Enable Hybrid Graphics/Advanced Optimus` do manual do Dell.
+No boot seguinte do Tahoe houve artefatos e o painel apagou. No Windows,
+o painel interno NCP005F e o monitor AOC via USB-C tinham a Intel A78B
+como dispositivo pai. O monitor Samsung via HDMI aparecia na RTX.
+[Manual da BIOS](https://www.dell.com/support/manuals/en-us/g-series-15-5530-laptop/dell-g15-5530-owners-manual/system-setup-options?guid=guid-a7c229f7-1e58-4726-b5f1-d0cfc670497f&lang=en-us)
+
+O novo plist acrescenta apenas `gfxrst=1`, opção que força o modo de
+reset do framebuffer no WhateverXe. O primeiro teste deve usar só o
+painel interno. Se apagar, repetir o boot usando o monitor USB-C como
+saída alternativa, com o HDMI direto desconectado. O teste separa a
+falha do painel de uma falha mais ampla na inicialização da Intel.
+[Argumentos no perfil de Rodrigo](../README.md#boot-args-of-the-system-config) ·
+[Relato de painel eDP escuro em A78B](https://github.com/b00t0x/WhateverXe/issues/132)
+
+Com o desktop acessível, rode `/bin/bash "/Volumes/TAHOE/G15-Intel/diagnostico-tahoe.sh"`.
+O [coletor](../tools/macos-g15-diagnostico.sh) grava `diagnostico-tahoe-video.txt`
+no pendrive ao lado do script. O USB também tem `config-antes-gfxrst.plist`.
